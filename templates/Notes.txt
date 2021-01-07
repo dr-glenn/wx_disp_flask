@@ -1,0 +1,8 @@
+I'm having troubles with "content security policy".
+I can't use maps.googleapis.com in radar.html with any modern browser because they all
+complain about Content Security Policy violations. In Edge I was able to get around it by
+loosening the tracking inhibitions. Possibly I need to put a CSP in my HTML header:
+https://stackoverflow.com/questions/13228825/google-maps-api-script-does-load-due-to-content-security-policy
+
+And now I can't access https://radar.weather.gov/ridge/RadarImg/N0R/MUX/, which is where I fetch
+radar GIFs. But this has nothing to do with my web pages, so setting a CSP header will not work.

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Wx Daily</title>
+</head>
+<body>
+<h2>OpenWeather Forecasts</h2>
+<h2>{{ heading }}</h2>
+{{ day_name }}<br>
+{% if time is defined %}
+{{ time }}
+<br>
+{% endif %}
+{{ temp_max }} / {{ temp_min }}, {{ humidity }}
+<br>
+{{ wind_speed }}, {{ wind_deg }}
+<br>
+{{ weather_description }}
+<br>
+<img alt="{{ weather_icon }}" src="http://openweathermap.org/img/wn/{{ weather_icon }}@2x.png" >
+</body>
+</html>

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Wx Curr All</title>
+</head>
+<body>
+<!-- Display all values delivered for current, hourly or daily data -->
+<h1>OpenWeather Forecasts</h1>
+<h2>{{ heading }}</h2>
+<ul>
+{% for ob in obs %}
+<li>{{ ob[0] }}: {{ ob[1] }}</li>
+{% endfor %}
+</ul>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Radar</title>
+    <style>
+    img { border: 2px solid; }
+    </style>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
+    <script
+      src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&callback=initMap&libraries=&v=weekly"
+      defer
+    ></script>
+    <link rel="stylesheet" type="text/css" href="../static/style.css" />
+    <script>
+    let map;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 37.0, lng: -122.0 },
+        zoom: 8,
+      });
+    }
+    </script>
+
+</head>
+<body>
+<script>
+    var is_run_loop = false;
+    var run_timer = null;
+    var i=0;
+    var img_files = [];
+    {% for img in imgs %}
+        img_files.push('{{ img }}');
+    {%  endfor %}
+    // load in background
+    for (img in img_files) { new Image(img);}
+    function next_image() {
+        is_run_loop = false;
+        do_next_image();
+    }
+    function prev_image() {
+        is_run_loop = false;
+        do_prev_image();
+    }
+    function do_next_image() {
+        i++;
+        if (i >= img_files.length) {
+            i = 0;
+        }
+        document.getElementById('curr_img').src = img_files[i];
+        //console.log('i='+i, 'file='+img_files[i]);
+    }
+    function do_prev_image() {
+        i--;
+        if (i < 0) {
+            i = img_files.length - 1;
+        }
+        document.getElementById('curr_img').src = img_files[i];
+        //console.log('i='+i, 'file='+img_files[i]);
+    }
+    function loop() {
+        if (is_run_loop) {
+            run_timer = setTimeout(function(){do_next_image(); loop();},1000);
+        }
+    }
+    function start_loop() {
+        is_run_loop = true;
+        loop();
+    }
+    function stop_loop() {
+        is_run_loop = false;
+        clearTimeout(run_timer);
+    }
+</script>
+<h1>Radar</h1>
+<div style="position: relative; left:0; top:0; background-color: beige">
+    <img id='curr_img' style="position:absolute; top:50px; left:100px;z-index:2" src="">
+    <div id="map" style="position:relative;z-index:1"></div>
+</div>
+<script>
+    // set curr_img
+    curr_img = document.getElementById('curr_img');
+    curr_img.src = img_files[0];
+</script>
+<br>
+<button type="button" onclick="start_loop()">start_Loop</button>
+<button type="button" onclick="stop_loop()">Stop_loop</button>
+<button type="button" onclick="prev_image()">Prev</button>
+<button type="button" onclick="next_image()">Next</button>
+</body>
+</html>
