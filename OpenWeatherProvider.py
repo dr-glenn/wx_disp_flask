@@ -46,7 +46,8 @@ icon_names = {
 'partly-cloudy-night':  'n_partlycloudy.png',
 }
 
-dt_keys = ('dt', 'sunrise', 'sunset')
+# datetime values need special handling
+dt_keys = ('dt', 'sunrise', 'sunset', 'day_name', 'hour_name')
 
 class WxData:
     def __init__(self):
@@ -58,23 +59,9 @@ class WxData:
         self.hasData = False
     def getwx(self):
         self.hasData = False
-        if False:
-            r = QUrl(self.wxurl)
-            r = QNetworkRequest(r)
-            self.manager = QtNetwork.QNetworkAccessManager()
-            self.wxreply = self.manager.get(r)
-            self.wxreply.finished.connect(self.wxfinished)
-        else:
-            self.wxreply = urllib.request.urlopen(self.wxurl)
-            wxstr = self.wxreply.read()
-            logger.debug('wxstr: %s' %(wxstr[:200]))
-            self.wxdata = json.loads(wxstr)
-            self.hasData = True
-    def wxfinished(self):
-        wxstr = str(self.wxreply.readAll())
-        if not wxstr:
-            logger.warning('wxstr is None')
-            return
+        self.wxreply = urllib.request.urlopen(self.wxurl)
+        wxstr = self.wxreply.read()
+        logger.debug('wxstr: %s' %(wxstr[:200]))
         self.wxdata = json.loads(wxstr)
         self.hasData = True
     def getData(self):
@@ -115,6 +102,10 @@ class DataParse:
                     data = wxdata[key[1]]
                     if key[1] in dt_keys:
                         data = dt.datetime.fromtimestamp(data)
+                        if key[1] == 'dt':
+                            self.obs['day_name'] = [data.strftime('%A'),'']
+                            logger.debug('store dt={}, day={}'.format(str(data),data.strftime('%A')))
+                            self.obs['hour_name'] = [data.strftime('%I'),' '+data.strftime('%p')]
                     logger.debug('key=%s, data=%s' %(key[1],str(data)))
                 else:
                     # DarkSky has optional fields, so it's OK if key[1] not found
@@ -140,15 +131,20 @@ class DataParse:
         # Get value from wxdata + the appropriate units string
         if key in self.obs:
             # TODO: the obs tables should have a conversion function
-            try:
-                obsVal = float(self.obs[key][0])
-                if abs(obsVal) >= 10.0:
-                    obsVal = int(obsVal + 0.5)  # get rid of decimal places
-                else:
-                    obsVal = float('%.1f' %(obsVal))
-            except:
-                # could not convert to float, so assume it's a string
+            if key in dt_keys:
+                # must interpret as str, this is really important when fetching hour_name
                 obsVal = self.obs[key][0]
+            else:
+                try:
+                    # attempt numeric conversion
+                    obsVal = float(self.obs[key][0])
+                    if abs(obsVal) >= 10.0:
+                        obsVal = int(obsVal + 0.5)  # get rid of decimal places
+                    else:
+                        obsVal = float('%.1f' %(obsVal))
+                except:
+                    # could not convert to float, so assume it's a string
+                    obsVal = self.obs[key][0]
             retval = str(obsVal) + self.obs[key][1]
             return retval
         else:
@@ -297,7 +293,7 @@ class FcstHourlyData(DataParse):
     def __init__(self,wxdata,ihour):
         DataParse.__init__(self,wxdata['hourly'][ihour],self.obsKeys,daily=False)
 
-def make_html(the_vals, heading='Current'):
+def make_html(obs, hourly, daily, heading='Current'):
     '''
     Generate web page with jinja2.
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
@@ -306,39 +302,12 @@ def make_html(the_vals, heading='Current'):
     loader = FileSystemLoader('./templates')
     env = Environment(loader=loader)
     templ = env.get_template('wx_curr.html')
-    templ_args = {}
-    #templ_args['obs'] = obs
-    templ_vals = [[key,the_vals.getObsStr(key)] for key in the_vals.obs]
-    #print(str(templ_vals))
-    #print(templ.render(obs=templ_vals))
-    return templ.render(heading=heading, obs=templ_vals)
-
-def make_wx_1(the_vals, heading='Current', interval=CURRENT_INTERVAL):
-    '''
-    Generate web page with jinja2.
-    :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
-    :return:
-    '''
-    loader = FileSystemLoader('./templates')
-    env = Environment(loader=loader)
-    templ = env.get_template('wx_1.html')
-    templ_keys = ['temp', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon']
-
-    templ_args = {}
-    for key in templ_keys:
-        templ_args[key] = the_vals.getObsStr(key)
-    #templ_args = {key:the_vals.getObsStr(key) for key in templ_keys}
-    dt_obs = dt.datetime.fromisoformat(the_vals.getObsStr('datetime'))
-    # day-of-week name
-    day_name = dt_obs.date().strftime('%A')
-    if interval == DAILY_INTERVAL:
-        templ_args['date'] = day_name
-        #templ_args['time'] = dt_obs.time()
-    else:
-        templ_args['date'] = dt_obs.date()
-        templ_args['time'] = dt_obs.time()
-    templ_args['heading'] = heading
-    return templ.render(templ_args)
+    ihour = 12
+    iday = 1    # tomorrow
+    obs_vals = [[key,obs.getObsStr(key)] for key in obs.obs]
+    hourly_vals = [[key,hourly.getObsStr(key)] for key in hourly.obs]
+    daily_vals = [[key,daily.getObsStr(key)] for key in daily.obs]
+    return templ.render(heading=heading, obs=obs_vals, hourly=hourly_vals, hour_name='13', daily=daily_vals, daily_name='Someday')
 
 def make_wx_current(the_vals, heading='Current Obs', interval=CURRENT_INTERVAL):
     '''

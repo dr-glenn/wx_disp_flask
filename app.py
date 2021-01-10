@@ -20,7 +20,9 @@ def wx_show_current():
 def wx_show_all_current():
     wxdata = ow.get_wx_all()
     obs = ow.parse_wx_curr(wxdata)
-    html = ow.make_html(obs, heading='Current Observations')
+    hourly = ow.parse_wx_hourly(wxdata,12)
+    daily = ow.parse_wx_daily(wxdata,1)
+    html = ow.make_html(obs, hourly, daily, heading='Current Observations')
     return html
 
 @app.route('/daily')
@@ -41,5 +43,6 @@ def wx_show_hourly():
 @app.route('/radar')
 def radar_show():
     return radar.get_html()
+
 if __name__ == '__main__':
     app.run()

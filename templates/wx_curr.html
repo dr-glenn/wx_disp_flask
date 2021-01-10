@@ -7,11 +7,29 @@
 <body>
 <!-- Display all values delivered for current, hourly or daily data -->
 <h1>OpenWeather Forecasts</h1>
-<h2>{{ heading }}</h2>
+<div>
+<h2>Current</h2>
 <ul>
 {% for ob in obs %}
 <li>{{ ob[0] }}: {{ ob[1] }}</li>
 {% endfor %}
 </ul>
+</div>
+<div>
+<h2>Hourly {{ hour_name }}</h2>
+<ul>
+{% for ob in hourly %}
+<li>{{ ob[0] }}: {{ ob[1] }}</li>
+{% endfor %}
+</ul>
+</div>
+<div>
+<h2>Daily {{ daily_name }}</h2>
+<ul>
+{% for ob in daily %}
+<li>{{ ob[0] }}: {{ ob[1] }}</li>
+{% endfor %}
+</ul>
+</div>
 </body>
 </html>
