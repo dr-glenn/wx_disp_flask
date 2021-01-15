@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Wx Fcst</title>
+    <style>
+    img { border: 2px solid; }
+    </style>
+    <link rel="stylesheet" type="text/css" href="../static/style.css" />
+</head>
+<body>
+<div style="width:800px;height:480px; border-width: 2px; border-style: solid;">
+<h2>OpenWeather Forecasts</h2>
+{% for div in divs %}
+    <div>
+    {{ div }}
+    </div>
+{% endfor %}
+</div>
+</body>
+</html>

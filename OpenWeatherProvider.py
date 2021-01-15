@@ -101,12 +101,19 @@ class DataParse:
                 if key[1] in wxdata:
                     data = wxdata[key[1]]
                     if key[1] in dt_keys:
+                        # storing a datetime
                         data = dt.datetime.fromtimestamp(data)
                         if key[1] == 'dt':
+                            # 'dt' is time of current obs or future forecast. Get day and hour from it for display use.
                             self.obs['day_name'] = [data.strftime('%A'),'']
                             logger.debug('store dt={}, day={}'.format(str(data),data.strftime('%A')))
                             self.obs['hour_name'] = [data.strftime('%I'),' '+data.strftime('%p')]
-                    logger.debug('key=%s, data=%s' %(key[1],str(data)))
+                        elif key[1] in ('sunrise', 'sunset'):
+                            logger.debug('sunrise/sunset: {}'.format(str(data)))
+                            data = data.strftime('%I:%M %p')
+                            #logger.debug('sunrise/sunset: {}'.format(str(data)))
+                            pass
+                    #logger.debug('key=%s, data=%s' %(key[1],str(data)))
                 else:
                     # DarkSky has optional fields, so it's OK if key[1] not found
                     logger.info('DataParse: key=%s not present in wxdata' %(key[1]))
@@ -262,7 +269,7 @@ class FcstDailyData(DataParse):
     ]
     # other keys: sunriseTime, sunsetTime, moonPhase, precipIntensityMax, precipIntensityMaxTime, more
     def __init__(self,wxdata,iday):
-        print(wxdata['daily'][iday])
+        #print(wxdata['daily'][iday])
         DataParse.__init__(self,wxdata['daily'][iday],self.obsKeys,daily=True)
 
 class FcstHourlyData(DataParse):
@@ -318,7 +325,7 @@ def make_wx_current(the_vals, heading='Current Obs', interval=CURRENT_INTERVAL):
     loader = FileSystemLoader('./templates')
     env = Environment(loader=loader)
     templ = env.get_template('wx_current.html')
-    templ_keys = ['temp', 'humidity', 'feels_like', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon']
+    templ_keys = ['temp', 'humidity', 'feels_like', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'sunrise', 'sunset']
 
     templ_args = {}
     for key in templ_keys:
@@ -331,10 +338,12 @@ def make_wx_current(the_vals, heading='Current Obs', interval=CURRENT_INTERVAL):
     day_name = dt_obs.date().strftime('%A')
     templ_args['day_name'] = day_name
     templ_args['time'] = dt_obs.strftime('%I:%M %p')
+    """
     dt_sunrise = dt.datetime.fromisoformat(the_vals.getObsStr('sunrise'))
     dt_sunset = dt.datetime.fromisoformat(the_vals.getObsStr('sunset'))
     templ_args['sunrise'] = dt_sunrise.strftime('%H:%M')
     templ_args['sunset'] = dt_sunset.strftime('%H:%M')
+    """
     templ_args['heading'] = heading
     return templ.render(templ_args)
 
@@ -360,6 +369,32 @@ def make_wx_hourly(the_vals, heading='Hourly Forecast', interval=HOURLY_INTERVAL
     templ_args['time'] = dt_obs.time()
     templ_args['heading'] = heading
     return templ.render(templ_args)
+
+def make_wx_fcst(data_all):
+    '''
+    Generate web page with jinja2.
+    :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
+    :return:
+    '''
+    loader = FileSystemLoader('./templates')
+    env = Environment(loader=loader)
+    templ_all = env.get_template('wx_fcst.html')        # complate page with multiple days
+    templ = env.get_template('fcst_daily_div.html')     # construct a DIV for each day
+    templ_keys = ['sunrise', 'sunset', 'temp_max', 'temp_min', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon']
+    divs = []
+    for day in range(7):
+        the_vals = parse_wx_daily(data_all, day)
+        templ_args = {}
+        for key in templ_keys:
+            templ_args[key] = the_vals.getObsStr(key)
+        #templ_args = {key:the_vals.getObsStr(key) for key in templ_keys}
+        dt_obs = dt.datetime.fromisoformat(the_vals.getObsStr('datetime'))
+        # day-of-week name
+        day_name = dt_obs.date().strftime('%A')
+        templ_args['day_name'] = day_name
+        divs.append(templ.render(templ_args))
+
+    return templ_all.render(divs=divs)
 
 def make_wx_daily(the_vals, heading='Current', interval=DAILY_INTERVAL):
     '''

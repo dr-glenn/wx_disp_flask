@@ -40,6 +40,12 @@ def wx_show_hourly():
     html = ow.make_wx_hourly(obs, heading='Hourly Forecast')
     return html
 
+@app.route('/fcsts')
+def wx_show_all_daily():
+    wxdata = ow.get_wx_all()
+    html = ow.make_wx_fcst(wxdata)
+    return html
+
 @app.route('/radar')
 def radar_show():
     return radar.get_html()

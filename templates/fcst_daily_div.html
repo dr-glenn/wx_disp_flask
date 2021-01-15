@@ -1,0 +1,18 @@
+<!-- construct a DIV that displays daily forecast -->
+<div>
+    <div>
+    <div style="display:inline-block;vertical-align:top; padding-left: 10px; padding-right:10px;">
+        <div class="bigger">{{ day_name }} </div>
+    {{ weather_description }}<br>
+    <img alt="{{ weather_icon }}" src="http://openweathermap.org/img/wn/{{ weather_icon }}.png" >
+
+    </div>
+    <div class="big" style="display:inline-block; vertical-align:top; padding-left: 10px; padding-right: 10px;">
+    Sunrise: {{ sunrise }}<br>Sunset: {{ sunset }}<br>
+    T: {{ temp_max }}/{{ temp_min }}, H: {{ humidity }}
+    <br>
+    Wind: {{ wind_speed }}, {{ wind_compass }} ({{ wind_deg }})
+    </div>
+    </div>
+
+</div>
