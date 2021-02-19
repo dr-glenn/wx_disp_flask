@@ -7,4 +7,10 @@
 .biggest {font-size: 32px;}
 .bigger {font-size: 24px;}
 .big {font-size: 20px;}
+.normal {font-size: 18px;}
+
+.grid-1 {display: grid;
+  grid-template-columns: 260px 260px 260px;
+  grid-template-rows: auto auto auto;
+}
 

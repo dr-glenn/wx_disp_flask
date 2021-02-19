@@ -1,22 +1,68 @@
-from flask import Flask, url_for
+from flask import Flask, make_response, request, current_app
+from functools import update_wrapper
+from datetime import timedelta
 import OpenWeatherProvider as ow
 import radar_disp as radar
+import logging
+import my_logger
+logger = my_logger.setup_logger(__name__,'ow.log', level=logging.DEBUG)
 
 app = Flask(__name__,static_folder='static')
 
+# got this CORS solution from https://stackoverflow.com/questions/26980713/solve-cross-origin-resource-sharing-with-flask
+def crossdomain(origin=None, methods=None, headers=None,
+                max_age=21600, attach_to_all=True,
+                automatic_options=True):
+    if methods is not None:
+        methods = ', '.join(sorted(x.upper() for x in methods))
+    if headers is not None and not isinstance(headers, str):
+        headers = ', '.join(x.upper() for x in headers)
+    if not isinstance(origin, str):
+        origin = ', '.join(origin)
+    if isinstance(max_age, timedelta):
+        max_age = max_age.total_seconds()
+
+    def get_methods():
+        if methods is not None:
+            return methods
+
+        options_resp = current_app.make_default_options_response()
+        return options_resp.headers['allow']
+
+    def decorator(f):
+        def wrapped_function(*args, **kwargs):
+            if automatic_options and request.method == 'OPTIONS':
+                resp = current_app.make_default_options_response()
+            else:
+                resp = make_response(f(*args, **kwargs))
+            if not attach_to_all and request.method != 'OPTIONS':
+                return resp
+
+            h = resp.headers
+
+            h['Access-Control-Allow-Origin'] = origin
+            h['Access-Control-Allow-Methods'] = get_methods()
+            h['Access-Control-Max-Age'] = str(max_age)
+            if headers is not None:
+                h['Access-Control-Allow-Headers'] = headers
+            return resp
+
+        f.provide_automatic_options = False
+        return update_wrapper(wrapped_function, f)
+    return decorator
 
 @app.route('/')
 def hello_world():
     return 'Hello World!'
 
-@app.route('/curr')
+@app.route('/now')
 def wx_show_current():
     wxdata = ow.get_wx_all()
     obs = ow.parse_wx_curr(wxdata)
     html = ow.make_wx_current(obs, heading='Current Weather')
     return html
 
-@app.route('/all_curr')
+@app.route('/all_now')
 def wx_show_all_current():
     wxdata = ow.get_wx_all()
     obs = ow.parse_wx_curr(wxdata)
@@ -25,7 +71,7 @@ def wx_show_all_current():
     html = ow.make_html(obs, hourly, daily, heading='Current Observations')
     return html
 
-@app.route('/daily')
+@app.route('/one_day')
 def wx_show_daily():
     wxdata = ow.get_wx_all()
     obs = ow.parse_wx_daily(wxdata)
@@ -33,17 +79,33 @@ def wx_show_daily():
     html = ow.make_wx_daily(obs, heading='Daily Forecast', interval=ow.DAILY_INTERVAL)
     return html
 
-@app.route('/hourly')
-def wx_show_hourly():
+@app.route('/one_hour')
+def wx_show_hour():
     wxdata = ow.get_wx_all()
     obs = ow.parse_wx_hourly(wxdata)
     html = ow.make_wx_hourly(obs, heading='Hourly Forecast')
     return html
 
-@app.route('/fcsts')
+@app.route('/hourly')
+def wx_show_hourly():
+    wxdata = ow.get_wx_all()
+    #obs = ow.parse_wx_hourly(wxdata)
+    html = ow.make_hourly_fcst_page(wxdata, heading='Hourly Forecast')
+    return html
+
+@app.route('/hourly_divs')
+@crossdomain(origin='*')
+def get_hourly_divs():
+    lon_lat = request.args.get('lon_lat')   # None if param not in request
+    logger.debug('get_hourly_divs, lon_lat={}'.format(lon_lat))
+    wxdata = ow.get_wx_all(lon_lat)
+    divs = ow.make_hourly_divs(wxdata)
+    return '\n'.join(divs)
+
+@app.route('/daily')
 def wx_show_all_daily():
     wxdata = ow.get_wx_all()
-    html = ow.make_wx_fcst(wxdata)
+    html = ow.make_daily_fcst_page(wxdata)
     return html
 
 @app.route('/radar')

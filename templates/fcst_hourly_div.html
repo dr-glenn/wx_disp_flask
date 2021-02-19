@@ -1,0 +1,18 @@
+<!-- construct a DIV that displays hourly forecast -->
+<div>
+    <div class="bigger" style="display:inline-block;vertical-align:top; padding-left: 5px; padding-right:5px;">
+        {{ time }}
+    </div>
+    <div class="normal" style="display:inline-block; vertical-align:top; padding-left: 10px; padding-right: 10px;">
+        <img alt="{{ weather_icon }}" src="http://openweathermap.org/img/wn/{{ weather_icon }}.png" style="vertical-align:top;">
+        <div style="display:inline-block;">
+            {{ weather_description }}<br>
+            T: {{ temp }}, H: {{ humidity }}
+            <br>
+            Wind: {{ wind_speed }}, {{ wind_compass }}
+            {% if pop %}
+                <br>Rain: {{ pop }}
+            {% endif %}
+        </div>
+    </div>
+</div>

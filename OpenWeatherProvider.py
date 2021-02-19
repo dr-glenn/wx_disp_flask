@@ -15,9 +15,7 @@ import my_logger
 from jinja2 import Template,Environment,PackageLoader,select_autoescape,FileSystemLoader
 
 logger = my_logger.setup_logger(__name__,'ow.log', level=logging.DEBUG)
-CURRENT_INTERVAL = 0
-HOURLY_INTERVAL = 1
-DAILY_INTERVAL =2
+
 # units for values: temperature, wind
 METRIC=0
 US=1
@@ -32,22 +30,23 @@ The same icon may be used for variations on the conditions, e.g., "light rain" a
 have same icon - so you need to display the text also.
 And there are day and night icons: same numeric code for icon, with suffix 'd' or 'n'.
 '''
-# Here is a list of names, with mapping to icons stored locally
-icon_names = {
-'clear-day':            'clear.png',
-'clear-night':          'n_clear.png',
-'rain':                 'rain.png',
-'snow':                 'snow.png',
-'sleet':                'sleet.png',
-'wind':                 '',
-'fog':                  'fog.png',
-'cloudy':               'cloudy.png',
-'partly-cloudy-day':    'partlycloudy.png',
-'partly-cloudy-night':  'n_partlycloudy.png',
-}
 
 # datetime values need special handling
 dt_keys = ('dt', 'sunrise', 'sunset', 'day_name', 'hour_name')
+
+def metric_to_english(key, value):
+    '''
+    Some values should be converted.
+    :param key:
+    :param value:
+    :return: converted value as a string
+    '''
+    if key.startswith('temp') or key.startswith('feels_like'):
+        return c_to_f(value),'°F'
+    elif key == 'wind_speed' or key == 'wind_gust':
+        return 2.237 * value, 'mph'    # meters/sec to miles/hour
+    else:
+        return value, ''
 
 class WxData:
     def __init__(self):
@@ -160,28 +159,29 @@ class DataParse:
 
     def getObsVal(self, key, units=METRIC):
         # Get value from wxdata + the appropriate units string
+        units = ''
         if key in self.obs:
-            # TODO: the obs tables should have a conversion function
-            try:
-                obsVal = float(self.obs[key][0])
-                if units==US:
-                    if key=='wind_speed' or key=='wind_gust':
-                        obsVal = 2.237 * obsVal # m/s to miles/hour
-                    elif key.startswith('temp') or key.startswith('feels_like'):
-                        obsVal = c_to_f(obsVal)
-                if abs(obsVal) >= 10.0:
-                    obsVal = int(obsVal + 0.5)  # get rid of decimal places
-                else:
-                    obsVal = float('%.1f' % (obsVal))
-            except:
-                # could not convert to float, so assume it's a string
+            if key in dt_keys:
+                # must interpret as str, this is really important when fetching hour_name
                 obsVal = self.obs[key][0]
-            #retval = str(obsVal) + self.obs[key][1]
+            else:
+                # TODO: the obs tables should have a conversion function
+                try:
+                    obsVal = float(self.obs[key][0])
+                    if units==US:
+                        obsVal,units = metric_to_english(key,obsVal)
+                    if abs(obsVal) >= 10.0:
+                        obsVal = int(obsVal + 0.5)  # get rid of decimal places
+                    else:
+                        obsVal = float('%.1f' % (obsVal))
+                except:
+                    # could not convert to float, so assume it's a string
+                    obsVal = self.obs[key][0]
             retval = str(obsVal)
-            return retval
+            return retval,units
         else:
             logger.warning('key=%s not found' % (key))
-            return None
+            return None,units
 
     @classmethod
     def wind_compass(cls, degrees):
@@ -265,12 +265,12 @@ class FcstDailyData(DataParse):
         ('weather_icon', ('weather','icon'), -1, ''),   # name of icon to fetch
         ('cloud_cover', 'clouds', -1, '%'),
         ('uv_index', 'uvi', -1, ''),
-        ('pop', 'pop', -1, '%'),
+        ('pop', 'pop', -1, ''),
     ]
     # other keys: sunriseTime, sunsetTime, moonPhase, precipIntensityMax, precipIntensityMaxTime, more
     def __init__(self,wxdata,iday):
-        #print(wxdata['daily'][iday])
-        DataParse.__init__(self,wxdata['daily'][iday],self.obsKeys,daily=True)
+        if len(wxdata['daily']) > iday:
+            DataParse.__init__(self,wxdata['daily'][iday],self.obsKeys,daily=True)
 
 class FcstHourlyData(DataParse):
     # Lookup table for key used in application display,
@@ -294,7 +294,7 @@ class FcstHourlyData(DataParse):
         ('weather_icon', ('weather','icon'), -1, ''),   # name of icon to fetch
         ('cloud_cover', 'clouds', -1, '%'),
         ('uv_index', 'uvi', -1, ''),
-        ('pop', 'pop', -1, '%'),
+        ('pop', 'pop', -1, ''),
     ]
     # other keys: apparentTemperature, dewPoint, humidity, pressure, windSpeed, windGust, windBearing, cloudCover, uvIndex, visibility, ozone
     def __init__(self,wxdata,ihour):
@@ -316,7 +316,7 @@ def make_html(obs, hourly, daily, heading='Current'):
     daily_vals = [[key,daily.getObsStr(key)] for key in daily.obs]
     return templ.render(heading=heading, obs=obs_vals, hourly=hourly_vals, hour_name='13', daily=daily_vals, daily_name='Someday')
 
-def make_wx_current(the_vals, heading='Current Obs', interval=CURRENT_INTERVAL):
+def make_wx_current(the_vals, heading='Current Obs'):
     '''
     Generate web page with jinja2.
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
@@ -329,27 +329,66 @@ def make_wx_current(the_vals, heading='Current Obs', interval=CURRENT_INTERVAL):
 
     templ_args = {}
     for key in templ_keys:
-        templ_args[key] = the_vals.getObsVal(key,units=US)
+        templ_args[key],unit = the_vals.getObsVal(key,units=US)
         if key == 'wind_deg':
             templ_args['wind_compass'] = DataParse.wind_compass(templ_args['wind_deg'])
-    #templ_args = {key:the_vals.getObsStr(key) for key in templ_keys}
-    dt_obs = dt.datetime.fromisoformat(the_vals.getObsStr('datetime'))
+    dt_obs = dt.datetime.fromisoformat(the_vals.getObsVal('datetime')[0])
     # day-of-week name
     day_name = dt_obs.date().strftime('%A')
     templ_args['day_name'] = day_name
     templ_args['time'] = dt_obs.strftime('%I:%M %p')
-    """
-    dt_sunrise = dt.datetime.fromisoformat(the_vals.getObsStr('sunrise'))
-    dt_sunset = dt.datetime.fromisoformat(the_vals.getObsStr('sunset'))
-    templ_args['sunrise'] = dt_sunrise.strftime('%H:%M')
-    templ_args['sunset'] = dt_sunset.strftime('%H:%M')
-    """
     templ_args['heading'] = heading
     return templ.render(templ_args)
 
-def make_wx_hourly(the_vals, heading='Hourly Forecast', interval=HOURLY_INTERVAL):
+def make_hourly_fcst_page(data_all, heading='Today', hours=[1,2,3,6,9]):
     '''
     Generate web page with jinja2.
+    :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
+    :return:
+    '''
+    loader = FileSystemLoader('./templates')
+    env = Environment(loader=loader)
+    templ_all = env.get_template('wx_hourly_many.html')        # complate page with multiple hours
+    all_divs = make_hourly_divs(data_all, hours=hours)
+    return templ_all.render(divs=all_divs)
+
+def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3]):
+    '''
+    Generate a DIV that contains other DIVs for each hour.
+    :param the_vals: object of FcstHourlyData
+    :param heading:
+    :param hours: list of forecast hours from present time
+    :return: HTML DIV list
+    '''
+    loader = FileSystemLoader('./templates')
+    env = Environment(loader=loader)
+    templ = env.get_template('fcst_hourly_div.html')     # construct a DIV for each hour
+    templ_keys = ['temp', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'pop']
+    divs = []
+
+    for hour in hours:
+        obs = parse_wx_hourly(the_vals, hour)
+        templ_args = {}
+        for key in templ_keys:
+            templ_args[key],unit = obs.getObsVal(key)
+            if key == 'wind_deg':
+                templ_args['wind_compass'] = DataParse.wind_compass(templ_args['wind_deg'])
+            elif key == 'pop':
+                if float(templ_args[key]) < 0.11:
+                    templ_args.pop('pop') # remove prob-of-precip so it's not displayed
+                else:   # TODO: should handle 'pop' value elsewhere
+                    templ_args[key] = '%d' % int(float(templ_args[key]) * 100.0)
+        dt_obs = dt.datetime.fromisoformat(obs.getObsVal('datetime')[0])
+        templ_args['time'] = dt_obs.strftime("%I %p")
+        divs.append(templ.render(templ_args))
+    logger.debug('made {} DIVs'.format(len(divs)))
+    logger.debug('DIV[0]: {}'.format(str(divs[0])))
+
+    return divs
+
+def make_wx_hourly(the_vals, heading='Hourly Forecast'):
+    '''
+    Generate single hour forecast web page with jinja2.
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
     :return:
     '''
@@ -360,9 +399,9 @@ def make_wx_hourly(the_vals, heading='Hourly Forecast', interval=HOURLY_INTERVAL
 
     templ_args = {}
     for key in templ_keys:
-        templ_args[key] = the_vals.getObsStr(key)
+        templ_args[key],unit = the_vals.getObsVal(key)
     #templ_args = {key:the_vals.getObsStr(key) for key in templ_keys}
-    dt_obs = dt.datetime.fromisoformat(the_vals.getObsStr('datetime'))
+    dt_obs = dt.datetime.fromisoformat(the_vals.getObsVal('datetime')[0])
     # day-of-week name
     day_name = dt_obs.date().strftime('%A')
     templ_args['day_name'] = day_name
@@ -370,7 +409,7 @@ def make_wx_hourly(the_vals, heading='Hourly Forecast', interval=HOURLY_INTERVAL
     templ_args['heading'] = heading
     return templ.render(templ_args)
 
-def make_wx_fcst(data_all):
+def make_daily_fcst_page(data_all):
     '''
     Generate web page with jinja2.
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
@@ -380,13 +419,24 @@ def make_wx_fcst(data_all):
     env = Environment(loader=loader)
     templ_all = env.get_template('wx_fcst.html')        # complate page with multiple days
     templ = env.get_template('fcst_daily_div.html')     # construct a DIV for each day
-    templ_keys = ['sunrise', 'sunset', 'temp_max', 'temp_min', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon']
+    templ_keys = ['sunrise', 'sunset', 'temp_max', 'temp_min', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'pop']
     divs = []
-    for day in range(7):
+    ndays = len(data_all['daily'])
+    ndays = min(ndays,9)
+
+    for day in range(ndays):
         the_vals = parse_wx_daily(data_all, day)
         templ_args = {}
         for key in templ_keys:
             templ_args[key] = the_vals.getObsStr(key)
+            #templ_args[key] = metric_to_english(key,templ_args[key])
+            if key == 'wind_deg':
+                templ_args['wind_compass'] = DataParse.wind_compass(templ_args['wind_deg'])
+            elif key == 'pop':
+                if float(templ_args[key]) < 0.11:
+                    templ_args.pop('pop') # remove prob-of-precip so it's not displayed
+                else:   # TODO: should handle 'pop' value elsewhere
+                    templ_args[key] = '%d' % int(float(templ_args[key]) * 100.0)
         #templ_args = {key:the_vals.getObsStr(key) for key in templ_keys}
         dt_obs = dt.datetime.fromisoformat(the_vals.getObsStr('datetime'))
         # day-of-week name
@@ -396,7 +446,7 @@ def make_wx_fcst(data_all):
 
     return templ_all.render(divs=divs)
 
-def make_wx_daily(the_vals, heading='Current', interval=DAILY_INTERVAL):
+def make_wx_daily(the_vals, heading='Daily'):
     '''
     Generate web page with jinja2.
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
@@ -414,19 +464,20 @@ def make_wx_daily(the_vals, heading='Current', interval=DAILY_INTERVAL):
     dt_obs = dt.datetime.fromisoformat(the_vals.getObsStr('datetime'))
     # day-of-week name
     day_name = dt_obs.date().strftime('%A')
-    if interval == DAILY_INTERVAL:
-        templ_args['day_name'] = day_name
-        #templ_args['time'] = dt_obs.time()
-    else:
-        templ_args['date'] = dt_obs.date()
-        templ_args['time'] = dt_obs.time()
+    templ_args['day_name'] = day_name
+    #templ_args['time'] = dt_obs.time()
     templ_args['heading'] = heading
     return templ.render(templ_args)
 
-def get_wx_all():
+def get_wx_all(lon_lat=None):
     # get OpenWeather data
+    if lon_lat:
+        lon,lat = lon_lat.split(',')
+    else:
+        lon = Config.location[0]
+        lat = Config.location[1]
     wx_fcst_url = 'https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&appid={API_key}&exclude=minutely&units=metric'.format(
-    lat=Config.location[1], lon=Config.location[0], API_key=ApiKeys.openweather_key)
+    lat=lat, lon=lon, API_key=ApiKeys.openweather_key)
     request = Request(wx_fcst_url)
     with urlopen(request) as response:
         jdata = response.read()
