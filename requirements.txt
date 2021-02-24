@@ -1,12 +1,4 @@
-certifi==2020.12.5
-click==7.1.2
 Flask==1.1.2
-GDAL==3.2.1
-itsdangerous==1.1.0
 Jinja2==2.11.2
-MarkupSafe @ file:///D:/bld/markupsafe_1602267515311/work
-numpy @ file:///D:/bld/numpy_1609881245947/work
-olefile @ file:///home/conda/feedstock_root/build_artifacts/olefile_1602866521163/work
-Pillow @ file:///D:/bld/pillow_1609628021887/work
-Werkzeug==1.0.1
-wincertstore==0.2
+
+pillow~=8.1.0

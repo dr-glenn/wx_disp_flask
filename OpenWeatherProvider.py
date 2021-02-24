@@ -41,6 +41,7 @@ def metric_to_english(key, value):
     :param value:
     :return: converted value as a string
     '''
+    logger.debug('metric_to_english: key={}, value={}'.format(key,value))
     if key.startswith('temp') or key.startswith('feels_like'):
         return c_to_f(value),'°F'
     elif key == 'wind_speed' or key == 'wind_gust':
@@ -85,6 +86,7 @@ class DataParse:
         for key in dataKeys:
             if isinstance(key[1],(list,tuple)):
                 try:
+                    # TODO: only handles tuple of 2 elements, no more.
                     kk = key[1]
                     # OpenWeather puts a dict inside a list for 'current',
                     # but not for 'daily'!
@@ -118,25 +120,26 @@ class DataParse:
                     logger.info('DataParse: key=%s not present in wxdata' %(key[1]))
                     continue
             if key[2] == -1 or key[2] == Config.metric:
+                # TODO: should probably eliminate key[2]: column 3
                 # Config.metric has value of either 0 or 1
                 self.obs[key[0]] = [data,key[3]]
                 logger.debug('save obs: key=%s, value=%s' %(key[0],str(self.obs[key[0]])))
             else:
                 # key[2] != Config.metric, so skip this obs
+                # NOTE: this clause only applied to wunderground, which returned some data
+                # in both metric and US. OpenWeatherMap only returns one or the other - as requested.
                 pass
-                
-        # Special case for 'icon', because we have local copies
-        """
-        #iconurl = wxdata['icon_url']
-        if wxdata['icon'] in icon_names:
-            icon_png = icon_names[wxdata['icon']]
-            self.obs['icon'] = [Config.icons + "/" + icon_png,'']
-        """
-                
-    def getObsStr(self,key, units=METRIC):
-        # Get value from wxdata + the appropriate units string
+
+    def getObsStr(self, key, units=US):
+        '''
+        Get value from wxdata and append units string
+        :param key:
+        :param units:
+        :return: a string for display
+        '''
         if key in self.obs:
             # TODO: the obs tables should have a conversion function
+            unitStr = None
             if key in dt_keys:
                 # must interpret as str, this is really important when fetching hour_name
                 obsVal = self.obs[key][0]
@@ -144,6 +147,8 @@ class DataParse:
                 try:
                     # attempt numeric conversion
                     obsVal = float(self.obs[key][0])
+                    if units==US:
+                        obsVal,unitStr = metric_to_english(key,obsVal)
                     if abs(obsVal) >= 10.0:
                         obsVal = int(obsVal + 0.5)  # get rid of decimal places
                     else:
@@ -151,16 +156,18 @@ class DataParse:
                 except:
                     # could not convert to float, so assume it's a string
                     obsVal = self.obs[key][0]
-            retval = str(obsVal) + self.obs[key][1]
+            if not unitStr: # None or empty ''
+                unitStr = self.obs[key][1]
+            retval = str(obsVal) + unitStr
             return retval
         else:
             logger.warning('key=%s not found' %(key))
             return None
 
-    def getObsVal(self, key, units=METRIC):
+    def getObsVal(self, key, units=US):
         # Get value from wxdata + the appropriate units string
-        units = ''
         if key in self.obs:
+            unitStr = ''
             if key in dt_keys:
                 # must interpret as str, this is really important when fetching hour_name
                 obsVal = self.obs[key][0]
@@ -169,7 +176,7 @@ class DataParse:
                 try:
                     obsVal = float(self.obs[key][0])
                     if units==US:
-                        obsVal,units = metric_to_english(key,obsVal)
+                        obsVal,unitStr = metric_to_english(key,obsVal)
                     if abs(obsVal) >= 10.0:
                         obsVal = int(obsVal + 0.5)  # get rid of decimal places
                     else:
@@ -178,10 +185,10 @@ class DataParse:
                     # could not convert to float, so assume it's a string
                     obsVal = self.obs[key][0]
             retval = str(obsVal)
-            return retval,units
+            return retval,unitStr
         else:
             logger.warning('key=%s not found' % (key))
-            return None,units
+            return None,''
 
     @classmethod
     def wind_compass(cls, degrees):
@@ -203,30 +210,35 @@ class CurrentObs(DataParse):
     # metric=1 or English=0 units or no_units=-1
     # and displays units (if any) in the application
     # NOTE: must use 'current' node to fetch these
+    '''
+    app_key: the name used in my code to get the value
+    data_key: the name or tuple used to get the value from JSON
+      if data_key is a tuple, then value is a nested dict
+    metric: 1 if value is metric, 0 if US, -1 if no units or no conversion
+    units: string to append to value when displayed
+    '''
     obsKeys = [
-        # app key,              data key,               metric, units
-        ('datetime',  'dt',   -1, ''),
-        ('sunrise', 'sunrise', -1, ''),
-        ('sunset', 'sunset', -1, ''),
-        ('temp', 'temp', 1, u'°C'),
-        ('feels_like', 'feels_like', 1, u'°C'),
-        ('pressure', 'pressure', 1, ' mb'),
-        ('humidity', 'humidity', -1, '%'),
-        ('dew_point', 'dew_point', 1, u'°C'),
-        ('cloud_cover', 'clouds', -1, '%'),
-        ('uv_index', 'uvi', -1, ''),
-        ('visibility', 'visibility', -1, ' m'),
-        ('wind_speed', 'wind_speed', 1, ' m/s'),
-        ('wind_gust', 'wind_gust', 1, ' m/s'),
-        ('wind_deg', 'wind_deg', -1, ''),
-        #('rain', 'rain', 1, ' mm'),
-        ('rain_1h', '(rain,1h)', 1, ' mm'),
-        #('snow', 'snow', 1, ' mm'),
-        ('snow_1h', '(snow,1h)', 1, ' mm'),
-        ('weather_id', ('weather','id'), -1, ''),   # integer
-        ('weather_main', ('weather','main'), -1, ''),   # category, such as Rain, Snow
+        # app_key,              data_key,           metric, units
+        ('datetime',            'dt',               -1, ''),
+        ('sunrise',             'sunrise',          -1, ''),
+        ('sunset',              'sunset',           -1, ''),
+        ('temp',                'temp',             1, u'°C'),
+        ('feels_like',          'feels_like',       1, u'°C'),
+        ('pressure',            'pressure',         1, ' mb'),
+        ('humidity',            'humidity',         -1, '%'),
+        ('dew_point',           'dew_point',        1, u'°C'),
+        ('cloud_cover',         'clouds',           -1, '%'),
+        ('uv_index',            'uvi',              -1, ''),
+        ('visibility',          'visibility',       -1, ' m'),
+        ('wind_speed',          'wind_speed',       1, ' m/s'),
+        ('wind_gust',           'wind_gust',        1, ' m/s'),
+        ('wind_deg',            'wind_deg',         -1, ''),
+        ('rain_1h',             '(rain,1h)',        1, ' mm'),
+        ('snow_1h',             '(snow,1h)',        1, ' mm'),
+        ('weather_id',          ('weather','id'),   -1, ''),   # integer
+        ('weather_main',        ('weather','main'), -1, ''),   # category, such as Rain, Snow
         ('weather_description', ('weather','description'), -1, ''), # text
-        ('weather_icon', ('weather','icon'), -1, ''),   # name of icon to fetch
+        ('weather_icon',        ('weather','icon'), -1, ''),   # name of icon to fetch
     ]
     # other keys: precipProbability, precipType, dewPoint, cloudCover, uvIndex, visibility, ozone
     def __init__(self,wxdata):
@@ -240,32 +252,32 @@ class FcstDailyData(DataParse):
     # and displays units (if any) in the application
     # NOTE: must use 'daily/data' node to fetch these
     obsKeys = [
-        # app key,  data key,   metric, units
-        ('datetime', 'dt', -1, ''),
-        ('sunrise', 'sunrise', -1, ''),
-        ('sunset', 'sunset', -1, ''),
-        ('temp_day', ('temp','day'), 1, u'°C'),
-        ('temp_min', ('temp','min'), 1, u'°C'),
-        ('temp_max', ('temp','max'), 1, u'°C'),
-        ('temp_night', ('temp','night'), 1, u'°C'),
-        ('temp_eve', ('temp','eve'), 1, u'°C'),
-        ('temp_morn', ('temp','morn'), 1, u'°C'),
-        ('feels_like_day', ('feels_like','day'), 1, u'°C'),
-        ('feels_like_night', ('feels_like','night'), 1, u'°C'),
-        ('feels_like_eve', ('feels_like','eve'), 1, u'°C'),
-        ('feels_like_morn', ('feels_like','morn'), 1, u'°C'),
-        ('pressure', 'pressure', 1, ' mb'),
-        ('humidity', 'humidity', -1, '%'),
-        ('dew_point', 'dew_point', 1, u'°C'),
-        ('wind_speed', 'wind_speed', 1, ' m/s'),
-        ('wind_deg', 'wind_deg', -1, ''),
-        ('weather_id', ('weather','id'), -1, ''),   # integer
-        ('weather_main', ('weather','main'), -1, ''),   # category, such as Rain, Snow
+        # app_key,              data_key,           metric, units
+        ('datetime',            'dt',               -1, ''),
+        ('sunrise',             'sunrise',          -1, ''),
+        ('sunset',              'sunset',           -1, ''),
+        ('temp_day',            ('temp','day'),     1, u'°C'),
+        ('temp_min',            ('temp','min'),     1, u'°C'),
+        ('temp_max',            ('temp','max'),     1, u'°C'),
+        ('temp_night',          ('temp','night'),   1, u'°C'),
+        ('temp_eve',            ('temp','eve'),     1, u'°C'),
+        ('temp_morn',           ('temp','morn'),    1, u'°C'),
+        ('feels_like_day',      ('feels_like','day'), 1, u'°C'),
+        ('feels_like_night',    ('feels_like','night'), 1, u'°C'),
+        ('feels_like_eve',      ('feels_like','eve'), 1, u'°C'),
+        ('feels_like_morn',     ('feels_like','morn'), 1, u'°C'),
+        ('pressure',            'pressure',         1, ' mb'),
+        ('humidity',            'humidity',         -1, '%'),
+        ('dew_point',           'dew_point',        1, u'°C'),
+        ('wind_speed',          'wind_speed',       1, ' m/s'),
+        ('wind_deg',            'wind_deg',         -1, ''),
+        ('weather_id',          ('weather','id'),   -1, ''),   # integer
+        ('weather_main',        ('weather','main'), -1, ''),   # category, such as Rain, Snow
         ('weather_description', ('weather','description'), -1, ''), # text
-        ('weather_icon', ('weather','icon'), -1, ''),   # name of icon to fetch
-        ('cloud_cover', 'clouds', -1, '%'),
-        ('uv_index', 'uvi', -1, ''),
-        ('pop', 'pop', -1, ''),
+        ('weather_icon',        ('weather','icon'), -1, ''),   # name of icon to fetch
+        ('cloud_cover',         'clouds',           -1, '%'),
+        ('uv_index',            'uvi',              -1, ''),
+        ('pop',                 'pop',              -1, ''),
     ]
     # other keys: sunriseTime, sunsetTime, moonPhase, precipIntensityMax, precipIntensityMaxTime, more
     def __init__(self,wxdata,iday):
@@ -279,22 +291,22 @@ class FcstHourlyData(DataParse):
     # and displays units (if any) in the application
     # NOTE: must use 'hourly/data' node to fetch these
     obsKeys = [
-        # app key,  data key,   metric, units
-        ('datetime', 'dt', -1, ''),
-        ('temp', 'temp', 1, u'°C'),
-        ('feels_like', 'feels_like', 1, u'°C'),
-        ('pressure', 'pressure', 1, ' mb'),
-        ('humidity', 'humidity', -1, '%'),
-        ('dew_point', 'dew_point', 1, u'°C'),
-        ('wind_speed', 'wind_speed', 1, ' m/s'),
-        ('wind_deg', 'wind_deg', -1, ''),
-        ('weather_id', ('weather','id'), -1, ''),   # integer
-        ('weather_main', ('weather','main'), -1, ''),   # category, such as Rain, Snow
+        # app_key,              data_key,           metric, units
+        ('datetime',            'dt',               -1, ''),
+        ('temp',                'temp',             1, u'°C'),
+        ('feels_like',          'feels_like',       1, u'°C'),
+        ('pressure',            'pressure',         1, ' mb'),
+        ('humidity',            'humidity',         -1, '%'),
+        ('dew_point',           'dew_point',        1, u'°C'),
+        ('wind_speed',          'wind_speed',       1, ' m/s'),
+        ('wind_deg',            'wind_deg',         -1, ''),
+        ('weather_id',          ('weather','id'),   -1, ''),   # integer
+        ('weather_main',        ('weather','main'), -1, ''),   # category, such as Rain, Snow
         ('weather_description', ('weather','description'), -1, ''), # text
-        ('weather_icon', ('weather','icon'), -1, ''),   # name of icon to fetch
-        ('cloud_cover', 'clouds', -1, '%'),
-        ('uv_index', 'uvi', -1, ''),
-        ('pop', 'pop', -1, ''),
+        ('weather_icon',        ('weather','icon'), -1, ''),   # name of icon to fetch
+        ('cloud_cover',         'clouds',           -1, '%'),
+        ('uv_index',            'uvi',              -1, ''),
+        ('pop',                 'pop',              -1, ''),
     ]
     # other keys: apparentTemperature, dewPoint, humidity, pressure, windSpeed, windGust, windBearing, cloudCover, uvIndex, visibility, ozone
     def __init__(self,wxdata,ihour):
@@ -352,7 +364,7 @@ def make_hourly_fcst_page(data_all, heading='Today', hours=[1,2,3,6,9]):
     all_divs = make_hourly_divs(data_all, hours=hours)
     return templ_all.render(divs=all_divs)
 
-def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3]):
+def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3,4], tz="America/Los_Angeles"):
     '''
     Generate a DIV that contains other DIVs for each hour.
     :param the_vals: object of FcstHourlyData
@@ -370,7 +382,7 @@ def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3]):
         obs = parse_wx_hourly(the_vals, hour)
         templ_args = {}
         for key in templ_keys:
-            templ_args[key],unit = obs.getObsVal(key)
+            templ_args[key],unitStr = obs.getObsVal(key)
             if key == 'wind_deg':
                 templ_args['wind_compass'] = DataParse.wind_compass(templ_args['wind_deg'])
             elif key == 'pop':
@@ -378,12 +390,13 @@ def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3]):
                     templ_args.pop('pop') # remove prob-of-precip so it's not displayed
                 else:   # TODO: should handle 'pop' value elsewhere
                     templ_args[key] = '%d' % int(float(templ_args[key]) * 100.0)
+            else:
+                templ_args[key] = str(templ_args[key])+unitStr
         dt_obs = dt.datetime.fromisoformat(obs.getObsVal('datetime')[0])
         templ_args['time'] = dt_obs.strftime("%I %p")
         divs.append(templ.render(templ_args))
     logger.debug('made {} DIVs'.format(len(divs)))
-    logger.debug('DIV[0]: {}'.format(str(divs[0])))
-
+    #logger.debug('DIV[0]: {}'.format(str(divs[0])))
     return divs
 
 def make_wx_hourly(the_vals, heading='Hourly Forecast'):
@@ -470,6 +483,13 @@ def make_wx_daily(the_vals, heading='Daily'):
     return templ.render(templ_args)
 
 def get_wx_all(lon_lat=None):
+    '''
+    Get data from OpenWeatherMap.
+    Request "all" data, but exclude "minutely" data. So we get current obs, all hourly and all daily.
+    Request metric data. If US units are desired, conversion is done when generating display.
+    :param lon_lat: a tuple or list of (longitude,latitude)
+    :return: dict that represents JSON. See OpenWeatherMap API for info.
+    '''
     # get OpenWeather data
     if lon_lat:
         lon,lat = lon_lat.split(',')
@@ -481,7 +501,6 @@ def get_wx_all(lon_lat=None):
     request = Request(wx_fcst_url)
     with urlopen(request) as response:
         jdata = response.read()
-    #print(jdata)
     data = json.loads(jdata)
     return data
 
