@@ -80,8 +80,7 @@ class DataParse:
     Once the data is parsed, the application can then request that the
     data be returned as a string, ready for display.
     '''
-    def __init__(self,wxdata,dataKeys,daily=False):
-        self.daily = daily
+    def __init__(self,wxdata,dataKeys,tzobj=None):
         self.obs = {}
         for key in dataKeys:
             if isinstance(key[1],(list,tuple)):
@@ -103,7 +102,7 @@ class DataParse:
                     data = wxdata[key[1]]
                     if key[1] in dt_keys:
                         # storing a datetime
-                        data = dt.datetime.fromtimestamp(data)
+                        data = dt.datetime.fromtimestamp(data,tzobj)
                         if key[1] == 'dt':
                             # 'dt' is time of current obs or future forecast. Get day and hour from it for display use.
                             self.obs['day_name'] = [data.strftime('%A'),'']
@@ -243,7 +242,7 @@ class CurrentObs(DataParse):
     # other keys: precipProbability, precipType, dewPoint, cloudCover, uvIndex, visibility, ozone
     def __init__(self,wxdata):
         print(wxdata['current'])
-        DataParse.__init__(self,wxdata['current'],self.obsKeys,daily=False)
+        DataParse.__init__(self,wxdata['current'],self.obsKeys)
 
 class FcstDailyData(DataParse):
     # Lookup table for key used in application display,
@@ -282,7 +281,7 @@ class FcstDailyData(DataParse):
     # other keys: sunriseTime, sunsetTime, moonPhase, precipIntensityMax, precipIntensityMaxTime, more
     def __init__(self,wxdata,iday):
         if len(wxdata['daily']) > iday:
-            DataParse.__init__(self,wxdata['daily'][iday],self.obsKeys,daily=True)
+            DataParse.__init__(self,wxdata['daily'][iday],self.obsKeys)
 
 class FcstHourlyData(DataParse):
     # Lookup table for key used in application display,
@@ -309,8 +308,8 @@ class FcstHourlyData(DataParse):
         ('pop',                 'pop',              -1, ''),
     ]
     # other keys: apparentTemperature, dewPoint, humidity, pressure, windSpeed, windGust, windBearing, cloudCover, uvIndex, visibility, ozone
-    def __init__(self,wxdata,ihour):
-        DataParse.__init__(self,wxdata['hourly'][ihour],self.obsKeys,daily=False)
+    def __init__(self,wxdata,ihour, tzobj=None):
+        DataParse.__init__(self,wxdata['hourly'][ihour],self.obsKeys,tzobj)
 
 def make_html(obs, hourly, daily, heading='Current'):
     '''
@@ -364,7 +363,7 @@ def make_hourly_fcst_page(data_all, heading='Today', hours=[1,2,3,6,9]):
     all_divs = make_hourly_divs(data_all, hours=hours)
     return templ_all.render(divs=all_divs)
 
-def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3,4], tz="America/Los_Angeles"):
+def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3,4], tz=-8):
     '''
     Generate a DIV that contains other DIVs for each hour.
     :param the_vals: object of FcstHourlyData
@@ -377,9 +376,10 @@ def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3,4], tz="America/Los
     templ = env.get_template('fcst_hourly_div.html')     # construct a DIV for each hour
     templ_keys = ['temp', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'pop']
     divs = []
+    tzobj = dt.timezone(dt.timedelta(hours=tz))
 
     for hour in hours:
-        obs = parse_wx_hourly(the_vals, hour)
+        obs = parse_wx_hourly(the_vals, hour, tzobj)
         templ_args = {}
         for key in templ_keys:
             templ_args[key],unitStr = obs.getObsVal(key)
@@ -393,7 +393,7 @@ def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3,4], tz="America/Los
             else:
                 templ_args[key] = str(templ_args[key])+unitStr
         dt_obs = dt.datetime.fromisoformat(obs.getObsVal('datetime')[0])
-        templ_args['time'] = dt_obs.strftime("%I %p")
+        templ_args['time'] = dt_obs.strftime("%a %I %p")
         divs.append(templ.render(templ_args))
     logger.debug('made {} DIVs'.format(len(divs)))
     #logger.debug('DIV[0]: {}'.format(str(divs[0])))
@@ -502,6 +502,7 @@ def get_wx_all(lon_lat=None):
     with urlopen(request) as response:
         jdata = response.read()
     data = json.loads(jdata)
+    logger.debug('get_wx_all: json={}, parsed={}'.format(len(jdata), len(data)))
     return data
 
 def parse_wx_curr(data):
@@ -514,9 +515,14 @@ def parse_wx_daily(data, iday=1):
     currObs = FcstDailyData(data, iday)
     return currObs
 
-def parse_wx_hourly(data, ihour=1):
+def parse_wx_hourly(data, ihour=1, tzobj=None):
+    if False:
+        # I put this here when OpenWeather messed up and started delivering hourly forecasts for every 6 hours instead
+        hr_recs = data['hourly']
+        for rec in hr_recs:
+            logger.debug('hourly: dt={}'.format(dt.datetime.fromtimestamp(rec['dt'])))
     # Construct the current obs data
-    currObs = FcstHourlyData(data, ihour)
+    currObs = FcstHourlyData(data, ihour, tzobj)
     return currObs
 
 if __name__ == '__main__':
