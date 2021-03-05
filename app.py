@@ -99,10 +99,20 @@ def wx_show_hourly():
 @crossdomain(origin='*')
 def get_hourly_divs():
     lon_lat = request.args.get('lon_lat')   # None if param not in request
-    logger.debug('get_hourly_divs, lon_lat={}'.format(lon_lat))
+    hoursStr = request.args.get('hours')
+    tzOffset = request.args.get('tz')
+    if tzOffset:
+        tzOffset = int(tzOffset)
+    else:
+        tzOffset = -8
+    if hoursStr:
+        hours = [int(h) for h in hoursStr.split(',')]
+    else:
+        hours = [1,2,3]
+    logger.debug('get_hourly_divs, lon_lat={}, hours={}'.format(lon_lat,hours))
     wxdata = ow.get_wx_all(lon_lat)
-    divs = ow.make_hourly_divs(wxdata)
-    return '\n'.join(divs)
+    divs = ow.make_hourly_divs(wxdata, hours=hours, tz=tzOffset)
+    return '<br>\n'.join(divs)
 
 @app.route('/daily')
 def wx_show_all_daily():
@@ -116,4 +126,4 @@ def radar_show():
     return radar.get_html()
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0')
