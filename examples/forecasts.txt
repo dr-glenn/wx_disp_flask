@@ -1,0 +1,78 @@
+OpenWeatherMap One Call API: Observations, Forecasts: free
+Includes forecasts by minute (for one hour), hour (for 48 hours), daily (7 days), national weather alerts
+and historical weather data for previous 5 days.
+Docs: https://openweathermap.org/api/one-call-api
+Example call:
+https://api.openweathermap.org/data/2.5/onecall?lat=33.441792&lon=-94.037689&exclude=hourly,daily&appid={API key}
+
+Response:
+"minutely": [
+    {
+      "dt": 1595243460,
+      "precipitation": 0
+    },
+    ...
+  },
+ "hourly": [
+    {
+      "dt": 1595242800,
+      "temp": 274.75,
+      "feels_like": 271.22,
+      "pressure": 1017,
+      "humidity": 96,
+      "dew_point": 274.18,
+      "uvi": 0,
+      "clouds": 90,
+      "visibility": 1765,
+      "wind_speed": 2.43,
+      "wind_deg": 303,
+      "weather": [
+        {
+          "id": 804,
+          "main": "Clouds",
+          "description": "overcast clouds",
+          "icon": "04n"
+        }
+      ],
+      "pop": 0.1
+    },
+    ...
+  }
+"daily": [
+        {
+      "dt": 1595268000,
+      "sunrise": 1608124431,
+      "sunset": 1608160224,
+      "temp": {
+        "day": 278.14,
+        "min": 273.15,
+        "max": 279.4,
+        "night": 273.15,
+        "eve": 275.82,
+        "morn": 275.35
+      },
+      "feels_like": {
+        "day": 273.53,
+        "night": 270.26,
+        "eve": 271.89,
+        "morn": 272.11
+      },
+      "pressure": 1021,
+      "humidity": 70,
+      "dew_point": 273.27,
+      "wind_speed": 3.74,
+      "wind_deg": 323,
+      "weather": [
+        {
+          "id": 803,
+          "main": "Clouds",
+          "description": "broken clouds",
+          "icon": "04d"
+        }
+      ],
+      "clouds": 60,
+      "pop": 0.84,
+      "uvi": 2.41
+    },
+    ...
+    },

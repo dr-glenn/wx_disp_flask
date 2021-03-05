@@ -39,7 +39,6 @@ def crossdomain(origin=None, methods=None, headers=None,
                 return resp
 
             h = resp.headers
-
             h['Access-Control-Allow-Origin'] = origin
             h['Access-Control-Allow-Methods'] = get_methods()
             h['Access-Control-Max-Age'] = str(max_age)
@@ -74,7 +73,7 @@ def wx_show_all_current():
 @app.route('/one_day')
 def wx_show_daily():
     wxdata = ow.get_wx_all()
-    obs = ow.parse_wx_daily(wxdata)
+    obs = ow.parse_wx_daily(wxdata) # use default day value
     #html = ow.make_html(obs, heading='Daily Forecast')
     html = ow.make_wx_daily(obs, heading='Daily Forecast', interval=ow.DAILY_INTERVAL)
     return html
@@ -82,10 +81,11 @@ def wx_show_daily():
 @app.route('/one_hour')
 def wx_show_hour():
     wxdata = ow.get_wx_all()
-    obs = ow.parse_wx_hourly(wxdata)
+    obs = ow.parse_wx_hourly(wxdata)    # use default hour value
     html = ow.make_wx_hourly(obs, heading='Hourly Forecast')
     return html
 
+# display a page of multiple hourly forecasts
 @app.route('/hourly')
 def wx_show_hourly():
     wxdata = ow.get_wx_all()
@@ -93,6 +93,8 @@ def wx_show_hourly():
     html = ow.make_hourly_fcst_page(wxdata, heading='Hourly Forecast')
     return html
 
+# return HTML for multiple hourly forecasts. Typically an AJAX call to insert content into page.
+# This route is used by another web app on a different port, so crossdomain is needed.
 @app.route('/hourly_divs')
 @crossdomain(origin='*')
 def get_hourly_divs():
@@ -108,6 +110,7 @@ def wx_show_all_daily():
     html = ow.make_daily_fcst_page(wxdata)
     return html
 
+# example of a radar display that I will never make operational
 @app.route('/radar')
 def radar_show():
     return radar.get_html()

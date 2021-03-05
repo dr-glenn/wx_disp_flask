@@ -31,7 +31,7 @@ def setup_logger(name, log_file, formatter=defFormatter, level=logging.INFO):
     :param level: standard logger levels are CRITICAL, ERROR, WARNING, INFO, DEBUG.
     :return: the logger. Use it like this: logger.info('message')
     """
-    handler = RotatingFileHandler(log_file, maxBytes=50000, backupCount=3)
+    handler = RotatingFileHandler(log_file, maxBytes=200000, backupCount=3)
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)
     logger.setLevel(level)
