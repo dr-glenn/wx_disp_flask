@@ -9,7 +9,7 @@
     <link rel="stylesheet" type="text/css" href="../static/style.css" />
 </head>
 <body>
-<div style="width:800px;height:480px; border-width: 2px; border-style: solid;">
+<div style="position:relative;width:800px;height:480px; border-width: 2px; border-style: solid;">
 <section class="grid-1">
 {% for div in divs %}
     <div style="margin: 1px; border: solid 2px; background-color: ivory;">
@@ -17,6 +17,12 @@
     </div>
 {% endfor %}
 </section>
+<div id="page_links" style="position:absolute; bottom:0; right:0;">
+    <a href="http://localhost:{{ node_port }}/radar.html"><button>Radar</button></a>
+    <!--
+    <a href="/now"><button>Current Weather</button></a>
+    -->
+</div>
 </div>
 </body>
 </html>

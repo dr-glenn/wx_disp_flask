@@ -1,12 +1,11 @@
 <!-- construct a DIV that displays daily forecast -->
-<div>
-    <div class="bigger" style="display:inline-block;vertical-align:top; padding-left: 10px; padding-right:10px;">
-        {{ day_name }}
+<div style="padding:5px;">
+    <div class="bigger" style="float:left;vertical-align:top; padding-right: 10px;">
+        {{ day_name }}<br>
+        <img alt="{{ weather_icon }}" src="http://openweathermap.org/img/wn/{{ weather_icon }}.png" style="vertical-align:top;">
     </div>
-    <div class="normal" style="display:inline-block; vertical-align:top; padding-left: 10px; padding-right: 10px;">
-
-    <img alt="{{ weather_icon }}" src="http://openweathermap.org/img/wn/{{ weather_icon }}.png" style="vertical-align:top;">
-        <div style="display:inline-block;">
+    <div class="normal" style="float:left; vertical-align:top;">
+        <div>
             {{ weather_description }}<br>Sunrise: {{ sunrise }}<br>Sunset: {{ sunset }}<br>
             T: {{ temp_max }}/{{ temp_min }}, H: {{ humidity }}
             <br>
