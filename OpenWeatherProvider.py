@@ -13,6 +13,7 @@ import ApiKeys
 import logging
 import my_logger
 from jinja2 import Template,Environment,PackageLoader,select_autoescape,FileSystemLoader
+import platform
 
 logger = my_logger.setup_logger(__name__,'ow.log', level=logging.DEBUG)
 
@@ -454,10 +455,14 @@ def make_daily_fcst_page(data_all):
         dt_obs = dt.datetime.fromisoformat(the_vals.getObsStr('datetime'))
         # day-of-week name
         day_name = dt_obs.date().strftime('%A')
-        templ_args['day_name'] = day_name
+        templ_args['day_name'] = day_name[:3]
         divs.append(templ.render(templ_args))
 
-    return templ_all.render(divs=divs)
+    if platform.system() == 'Windows':
+        node_port = '1234'
+    else:
+        node_port = '80'
+    return templ_all.render(divs=divs, node_port=node_port)
 
 def make_wx_daily(the_vals, heading='Daily'):
     '''
