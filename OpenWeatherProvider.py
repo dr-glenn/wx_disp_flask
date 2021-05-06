@@ -12,8 +12,10 @@ import Config
 import ApiKeys
 import logging
 import my_logger
-from jinja2 import Template,Environment,PackageLoader,select_autoescape,FileSystemLoader
-import platform
+from jinja2 import Environment, FileSystemLoader
+import tail
+
+from Config import get_node_addr, make_buttons
 
 logger = my_logger.setup_logger(__name__,'ow.log', level=logging.DEBUG)
 
@@ -242,7 +244,7 @@ class CurrentObs(DataParse):
     ]
     # other keys: precipProbability, precipType, dewPoint, cloudCover, uvIndex, visibility, ozone
     def __init__(self,wxdata):
-        print(wxdata['current'])
+        #print(wxdata['current'])
         DataParse.__init__(self,wxdata['current'],self.obsKeys)
 
 class FcstDailyData(DataParse):
@@ -320,13 +322,42 @@ def make_html(obs, hourly, daily, heading='Current'):
     '''
     loader = FileSystemLoader('./templates')
     env = Environment(loader=loader)
-    templ = env.get_template('wx_curr.html')
+    templ = env.get_template('wx_now_all.html')
     ihour = 12
     iday = 1    # tomorrow
     obs_vals = [[key,obs.getObsStr(key)] for key in obs.obs]
     hourly_vals = [[key,hourly.getObsStr(key)] for key in hourly.obs]
     daily_vals = [[key,daily.getObsStr(key)] for key in daily.obs]
     return templ.render(heading=heading, obs=obs_vals, hourly=hourly_vals, hour_name='13', daily=daily_vals, daily_name='Someday')
+
+def get_home_sensors(fname):
+    val_dict = {}
+    f = open(fname, 'r')
+    sens_str = tail.tail(f, lines=2)
+    sens_lines = sens_str.split('\n')
+    # lines look like this:
+    # pi_zero/pm25: time=2021-05-03T14:31:01,PM1.0=2,PM2.5=4,PM10.0=9
+    # pi_zero/bme280: time=2021-05-03T14:31:06,temp_c=21.2,humidity=44.7,pressure=1008.1
+    for line in sens_lines:
+        l = line.split(':',maxsplit=1)
+        # l[0] is the sensor topic
+        # l[1] is the values, including time
+        values_list = l[1].split(',')
+        # stuff the values_list into a dict
+        for value in values_list:
+            logger.debug('get_home_sensors: value={}'.format(value))
+            try:
+                val = value.split('=')
+                sens_key = 'sens_' + val[0].lower().replace('.','_')
+                val_dict[sens_key] = val[1]
+            except:
+                logger.debug('get_home_sensors: value={}'.format(value))
+        if l[0].find('bme280'):
+            pass
+        elif l[0].find('pm25'):
+            pass
+    logger.debug(str(val_dict))
+    return val_dict
 
 def make_wx_current(the_vals, heading='Current Obs'):
     '''
@@ -336,8 +367,8 @@ def make_wx_current(the_vals, heading='Current Obs'):
     '''
     loader = FileSystemLoader('./templates')
     env = Environment(loader=loader)
-    templ = env.get_template('wx_current.html')
-    templ_keys = ['temp', 'humidity', 'feels_like', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'sunrise', 'sunset']
+    templ = env.get_template('wx_now.html')
+    templ_keys = ['temp', 'humidity', 'feels_like', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'sunrise', 'sunset', 'uv_index', 'feels_like']
 
     templ_args = {}
     for key in templ_keys:
@@ -350,7 +381,15 @@ def make_wx_current(the_vals, heading='Current Obs'):
     templ_args['day_name'] = day_name
     templ_args['time'] = dt_obs.strftime('%I:%M %p')
     templ_args['heading'] = heading
-    return templ.render(templ_args)
+    # Get home sensors
+    sensors = get_home_sensors('../sensors/mqtt_rcv.log')
+    # TODO: should modify the template to take a dict of sensors, but for now ...
+    for s in sensors:
+        templ_args[s] = sensors[s]
+    host,node_port = get_node_addr()
+    buttons = make_buttons(exclude=['hourly', 'now'])  # returns list of HTML string
+    buttons = ''.join(buttons)
+    return templ.render(templ_args, node_port=node_port, buttons=buttons)
 
 def make_hourly_fcst_page(data_all, heading='Today', hours=[1,2,3,6,9]):
     '''
@@ -431,7 +470,7 @@ def make_daily_fcst_page(data_all):
     '''
     loader = FileSystemLoader('./templates')
     env = Environment(loader=loader)
-    templ_all = env.get_template('wx_fcst.html')        # complate page with multiple days
+    templ_all = env.get_template('wx_daily_many.html')        # complate page with multiple days
     templ = env.get_template('fcst_daily_div.html')     # construct a DIV for each day
     templ_keys = ['sunrise', 'sunset', 'temp_max', 'temp_min', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'pop']
     divs = []
@@ -457,12 +496,11 @@ def make_daily_fcst_page(data_all):
         day_name = dt_obs.date().strftime('%A')
         templ_args['day_name'] = day_name[:3]
         divs.append(templ.render(templ_args))
-
-    if platform.system() == 'Windows':
-        node_port = '1234'
-    else:
-        node_port = '80'
-    return templ_all.render(divs=divs, node_port=node_port)
+    host,node_port = get_node_addr()
+    buttons = make_buttons(exclude=['hourly', 'daily'])  # returns list of HTML string
+    buttons = ''.join(buttons)
+    #logger.debug('make_buttons: {}'.format(buttons))
+    return templ_all.render(divs=divs, node_port=node_port, buttons=buttons)
 
 def make_wx_daily(the_vals, heading='Daily'):
     '''
@@ -472,7 +510,7 @@ def make_wx_daily(the_vals, heading='Daily'):
     '''
     loader = FileSystemLoader('./templates')
     env = Environment(loader=loader)
-    templ = env.get_template('wx_daily.html')
+    templ = env.get_template('wx_daily_one.html')
     templ_keys = ['temp_max', 'temp_min', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon']
 
     templ_args = {}
@@ -533,7 +571,7 @@ def parse_wx_hourly(data, ihour=1, tzobj=None):
 if __name__ == '__main__':
     # get OpenWeather data
     wx_fcst_url = 'https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&appid={API_key}&exclude=minutely&units=metric'.format(
-    lat=Config.location[1], lon=Config.location[0], API_key=ApiKeys.openweather_key)
+        lat=Config.location[1], lon=Config.location[0], API_key=ApiKeys.openweather_key)
     request = Request(wx_fcst_url)
     with urlopen(request) as response:
         jdata = response.read()

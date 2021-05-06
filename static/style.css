@@ -1,5 +1,13 @@
 /* Always set the map height explicitly to define the size of the div
-       * element that contains the map. */
+ * element that contains the map. */
+
+.main_div {
+  position:relative;
+  height:474px;
+  width:792px;
+  border-width:2px; border-style:solid;
+}
+
 #map {
   height: 600px;
     width: 600px;

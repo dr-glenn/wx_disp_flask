@@ -56,6 +56,8 @@ def hello_world():
 
 @app.route('/now')
 def wx_show_current():
+    # TODO: want to know value of the route
+    route = 'now'
     wxdata = ow.get_wx_all()
     obs = ow.parse_wx_curr(wxdata)
     html = ow.make_wx_current(obs, heading='Current Weather')
