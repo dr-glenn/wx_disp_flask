@@ -1,4 +1,5 @@
 #from GoogleMercatorProjection import LatLng
+import platform
 
 bFullScreen = False # has to be True for R-Pi touchscreen version
 
@@ -50,3 +51,37 @@ LMoonPhase = " Moon:"
 LInsideTemp = "Inside Temp "
 LRain = " Rain: "
 LSnow = " Snow: "
+
+
+def get_node_addr():
+    host = 'localhost'
+    if platform.system() == 'Windows':
+        node_port = '1234'
+    else:
+        node_port = '80'
+    return host,node_port
+
+
+def make_buttons(exclude=[]):
+    '''
+    Make page change buttons, but exclude some.
+    Button names are the same as page routes.
+    :param exclude: list of button names to exclude
+    :return: DIV that contains fully constructed buttons
+    '''
+    buttons = []
+    NAV_BUT = {}
+    NAV_BUT['radar'] = ('Radar', get_node_addr(), 'radar.html')
+    NAV_BUT['now'] = ('Current Wx', None, 'now')
+    NAV_BUT['hourly'] = ('Today Fcst', None, 'hourly_divs')
+    NAV_BUT['daily'] = ('Daily Fcst', None, 'daily')
+    for key in exclude:
+        NAV_BUT.pop(key)
+    for key,item in NAV_BUT.items():
+        if not item[1]:
+            link = '/'+item[2]
+        else:
+            link = 'http://{}:{}/{}'.format(item[1][0], item[1][1], item[2])
+        bstr = '<a href="{}"><button>{}</button></a>'.format(link,NAV_BUT[key][0])
+        buttons.append(bstr)
+    return buttons
