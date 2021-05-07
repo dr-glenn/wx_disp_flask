@@ -348,8 +348,11 @@ def get_home_sensors(fname):
             logger.debug('get_home_sensors: value={}'.format(value))
             try:
                 val = value.split('=')
-                sens_key = 'sens_' + val[0].lower().replace('.','_')
+                sens_key = 'sens_' + val[0].strip().lower().replace('.','_')
                 val_dict[sens_key] = val[1]
+                if sens_key == 'sens_time':
+                    dt_obs = dt.datetime.strptime(val[1], '%Y-%m-%dT%H:%M:%S')
+                    val_dict[sens_key] = dt_obs.strftime('%I:%M %p')
             except:
                 logger.debug('get_home_sensors: value={}'.format(value))
         if l[0].find('bme280'):
