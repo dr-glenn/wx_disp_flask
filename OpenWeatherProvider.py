@@ -14,6 +14,7 @@ import logging
 import my_logger
 from jinja2 import Environment, FileSystemLoader
 import tail
+import tzinfo_4us as tzhelp
 
 from Config import get_node_addr, make_buttons
 
@@ -25,6 +26,14 @@ US=1
 
 def c_to_f(temp):
     return 1.8 * temp + 32.0
+
+Eastern  = tzhelp.USTimeZone(-5, "Eastern",  "EST", "EDT")
+Central  = tzhelp.USTimeZone(-6, "Central",  "CST", "CDT")
+Mountain = tzhelp.USTimeZone(-7, "Mountain", "MST", "MDT")
+Pacific  = tzhelp.USTimeZone(-8, "Pacific",  "PST", "PDT")
+
+myTZ = {'-5':Eastern, '-6':Central, '-7': Mountain, '-8':Pacific}
+
 '''
 OpenWeather defines some strings to describe weather icons,
 See page for more info: https://openweathermap.org/weather-conditions#Weather-Condition-Codes-2
@@ -42,13 +51,13 @@ def metric_to_english(key, value):
     Some values should be converted.
     :param key:
     :param value:
-    :return: converted value as a string
+    :return: converted value as a number and units string
     '''
     logger.debug('metric_to_english: key={}, value={}'.format(key,value))
     if key.startswith('temp') or key.startswith('feels_like'):
-        return c_to_f(value),'°F'
+        return c_to_f(float(value)),'°F'
     elif key == 'wind_speed' or key == 'wind_gust':
-        return 2.237 * value, 'mph'    # meters/sec to miles/hour
+        return 2.237 * float(value), 'mph'    # meters/sec to miles/hour
     else:
         return value, ''
 
@@ -83,7 +92,12 @@ class DataParse:
     Once the data is parsed, the application can then request that the
     data be returned as a string, ready for display.
     '''
-    def __init__(self,wxdata,dataKeys,tzobj=None):
+    def __init__(self,wxdata,dataKeys,tzoff=-8):
+        tzoffStr = str(tzoff)
+        if tzoffStr in myTZ:
+            tz_local = myTZ[tzoffStr]
+        else:
+            tz_local = None     # we won't be able to correct times that are returned by OpenWeather
         self.obs = {}
         for key in dataKeys:
             if isinstance(key[1],(list,tuple)):
@@ -105,6 +119,17 @@ class DataParse:
                     data = wxdata[key[1]]
                     if key[1] in dt_keys:
                         # storing a datetime
+                        if tz_local:
+                            tz_x = dt.timezone(dt.timedelta(hours=tzoff))
+                            tdata = dt.datetime.fromtimestamp(data,tz=tz_x)
+                            offset = 0
+                            logger.debug('time={}, offset={}'.format(tdata,offset))
+                            offset = tz_local.utcoffset(tdata)  # figures out offset based on tdata - might be wrong near when daylight time changes
+                            logger.debug('time={}, offset={}'.format(tdata,offset))
+                            #tzobj = dt.timezone(dt.timedelta(hours=offset))
+                            tzobj = dt.timezone(offset)
+                        else:
+                            tzobj = None
                         data = dt.datetime.fromtimestamp(data,tzobj)
                         if key[1] == 'dt':
                             # 'dt' is time of current obs or future forecast. Get day and hour from it for display use.
@@ -243,9 +268,9 @@ class CurrentObs(DataParse):
         ('weather_icon',        ('weather','icon'), -1, ''),   # name of icon to fetch
     ]
     # other keys: precipProbability, precipType, dewPoint, cloudCover, uvIndex, visibility, ozone
-    def __init__(self,wxdata):
+    def __init__(self,wxdata, tzoff=-8):
         #print(wxdata['current'])
-        DataParse.__init__(self,wxdata['current'],self.obsKeys)
+        DataParse.__init__(self,wxdata['current'],self.obsKeys, tzoff)
 
 class FcstDailyData(DataParse):
     # Lookup table for key used in application display,
@@ -282,9 +307,9 @@ class FcstDailyData(DataParse):
         ('pop',                 'pop',              -1, ''),
     ]
     # other keys: sunriseTime, sunsetTime, moonPhase, precipIntensityMax, precipIntensityMaxTime, more
-    def __init__(self,wxdata,iday):
+    def __init__(self,wxdata,iday, tzoff=-8):
         if len(wxdata['daily']) > iday:
-            DataParse.__init__(self,wxdata['daily'][iday],self.obsKeys)
+            DataParse.__init__(self,wxdata['daily'][iday],self.obsKeys, tzoff)
 
 class FcstHourlyData(DataParse):
     # Lookup table for key used in application display,
@@ -311,8 +336,8 @@ class FcstHourlyData(DataParse):
         ('pop',                 'pop',              -1, ''),
     ]
     # other keys: apparentTemperature, dewPoint, humidity, pressure, windSpeed, windGust, windBearing, cloudCover, uvIndex, visibility, ozone
-    def __init__(self,wxdata,ihour, tzobj=None):
-        DataParse.__init__(self,wxdata['hourly'][ihour],self.obsKeys,tzobj)
+    def __init__(self,wxdata,ihour, tzoff=-8):
+        DataParse.__init__(self,wxdata['hourly'][ihour],self.obsKeys,tzoff)
 
 def make_html(obs, hourly, daily, heading='Current'):
     '''
@@ -348,13 +373,17 @@ def get_home_sensors(fname):
             logger.debug('get_home_sensors: value={}'.format(value))
             try:
                 val = value.split('=')
-                sens_key = 'sens_' + val[0].strip().lower().replace('.','_')
-                val_dict[sens_key] = val[1]
-                if sens_key == 'sens_time':
-                    dt_obs = dt.datetime.strptime(val[1], '%Y-%m-%dT%H:%M:%S')
-                    val_dict[sens_key] = dt_obs.strftime('%I:%M %p')
+                sens_key = val[0].strip().lower().replace('.','_') + '_sens'
+                sens_val = val[1]
+                if sens_key == 'time_sens':
+                    dt_obs = dt.datetime.strptime(sens_val, '%Y-%m-%dT%H:%M:%S')
+                    sens_val = dt_obs.strftime('%I:%M %p') # only want HH:MM for display
+                    units = ''
+                else:
+                    sens_val,units = metric_to_english(sens_key, sens_val)
             except:
-                logger.debug('get_home_sensors: value={}'.format(value))
+                logger.debug('ERROR: get_home_sensors: value={}'.format(value))
+            val_dict[sens_key] = sens_val
         if l[0].find('bme280'):
             pass
         elif l[0].find('pm25'):
@@ -406,7 +435,7 @@ def make_hourly_fcst_page(data_all, heading='Today', hours=[1,2,3,6,9]):
     all_divs = make_hourly_divs(data_all, hours=hours)
     return templ_all.render(divs=all_divs)
 
-def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3,4], tz=-8):
+def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3,4], tzoff=-8):
     '''
     Generate a DIV that contains other DIVs for each hour.
     :param the_vals: object of FcstHourlyData
@@ -419,10 +448,10 @@ def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3,4], tz=-8):
     templ = env.get_template('fcst_hourly_div.html')     # construct a DIV for each hour
     templ_keys = ['temp', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'pop']
     divs = []
-    tzobj = dt.timezone(dt.timedelta(hours=tz))
+    #tzobj = dt.timezone(dt.timedelta(hours=tz))
 
     for hour in hours:
-        obs = parse_wx_hourly(the_vals, hour, tzobj)
+        obs = parse_wx_hourly(the_vals, hour, tzoff)
         templ_args = {}
         for key in templ_keys:
             templ_args[key],unitStr = obs.getObsVal(key)
@@ -465,11 +494,16 @@ def make_wx_hourly(the_vals, heading='Hourly Forecast'):
     templ_args['heading'] = heading
     return templ.render(templ_args)
 
-def make_daily_fcst_page(data_all):
+def make_daily_fcst_page(data_all, tzoff=-8, homeName=''):
     '''
     Generate web page with jinja2.
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
     :return:
+    '''
+    '''
+    tzStr = str(tz)
+    if tzStr in myTZ:
+        tz_local = myTZ[tzStr].utcoffset()
     '''
     loader = FileSystemLoader('./templates')
     env = Environment(loader=loader)
@@ -481,14 +515,16 @@ def make_daily_fcst_page(data_all):
     ndays = min(ndays,9)
 
     for day in range(ndays):
-        the_vals = parse_wx_daily(data_all, day)
+
+        #tzobj = dt.timezone(dt.timedelta(hours=tz)) # inside loop in case ndays crosses daylight hours change
+        the_vals = parse_wx_daily(data_all, day, tzoff)
         templ_args = {}
         for key in templ_keys:
             templ_args[key] = the_vals.getObsStr(key)
             #templ_args[key] = metric_to_english(key,templ_args[key])
             if key == 'wind_deg':
                 templ_args['wind_compass'] = DataParse.wind_compass(templ_args['wind_deg'])
-            elif key == 'pop':
+            elif key == 'pop':  # probability-of-precipitation
                 if float(templ_args[key]) < 0.11:
                     templ_args.pop('pop') # remove prob-of-precip so it's not displayed
                 else:   # TODO: should handle 'pop' value elsewhere
@@ -503,7 +539,7 @@ def make_daily_fcst_page(data_all):
     buttons = make_buttons(exclude=['hourly', 'daily'])  # returns list of HTML string
     buttons = ''.join(buttons)
     #logger.debug('make_buttons: {}'.format(buttons))
-    return templ_all.render(divs=divs, node_port=node_port, buttons=buttons)
+    return templ_all.render(divs=divs, node_port=node_port, buttons=buttons, home=homeName)
 
 def make_wx_daily(the_vals, heading='Daily'):
     '''
@@ -528,7 +564,7 @@ def make_wx_daily(the_vals, heading='Daily'):
     templ_args['heading'] = heading
     return templ.render(templ_args)
 
-def get_wx_all(lon_lat=None):
+def get_wx_all(lon_lat=None, tz_off=-8):
     '''
     Get data from OpenWeatherMap.
     Request "all" data, but exclude "minutely" data. So we get current obs, all hourly and all daily.
@@ -556,19 +592,19 @@ def parse_wx_curr(data):
     currObs = CurrentObs(data)
     return currObs
 
-def parse_wx_daily(data, iday=1):
+def parse_wx_daily(data, iday=1, tzoff=-8):
     # Construct the current obs data
-    currObs = FcstDailyData(data, iday)
+    currObs = FcstDailyData(data, iday, tzoff)
     return currObs
 
-def parse_wx_hourly(data, ihour=1, tzobj=None):
+def parse_wx_hourly(data, ihour=1, tzoff=-8):
     if False:
         # I put this here when OpenWeather messed up and started delivering hourly forecasts for every 6 hours instead
         hr_recs = data['hourly']
         for rec in hr_recs:
             logger.debug('hourly: dt={}'.format(dt.datetime.fromtimestamp(rec['dt'])))
     # Construct the current obs data
-    currObs = FcstHourlyData(data, ihour, tzobj)
+    currObs = FcstHourlyData(data, ihour, tzoff)
     return currObs
 
 if __name__ == '__main__':

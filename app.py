@@ -113,13 +113,21 @@ def get_hourly_divs():
         hours = [1,2,3]
     logger.debug('get_hourly_divs, lon_lat={}, hours={}'.format(lon_lat,hours))
     wxdata = ow.get_wx_all(lon_lat)
-    divs = ow.make_hourly_divs(wxdata, hours=hours, tz=tzOffset)
+    divs = ow.make_hourly_divs(wxdata, hours=hours, tzoff=tzOffset)
     return '<br>\n'.join(divs)
 
 @app.route('/daily')
 def wx_show_all_daily():
-    wxdata = ow.get_wx_all()
-    html = ow.make_daily_fcst_page(wxdata)
+    lon_lat = request.args.get('lon_lat')   # None if param not in request
+    #tz_off = request.args.get('tz_off')     # time zone offset in hours
+    tzOffset = request.args.get('tz')
+    homeName = request.args.get('home_name')
+    if tzOffset:
+        tzOffset = int(tzOffset)
+    else:
+        tzOffset = -8
+    wxdata = ow.get_wx_all(lon_lat, tzOffset)
+    html = ow.make_daily_fcst_page(wxdata, tzOffset, homeName)
     return html
 
 # example of a radar display that I will never make operational

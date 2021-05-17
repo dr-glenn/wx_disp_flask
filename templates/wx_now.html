@@ -21,7 +21,7 @@
 <img alt="{{ weather_icon }}" src="http://openweathermap.org/img/wn/{{ weather_icon }}.png" >
 
 </div>
-<div class="big" style="background-color: beige; display:inline-block; vertical-align:top; padding-left: 6px; padding-right: 6px; margin-right:8px;">
+<div class="big" style="background-color: beige; display:inline-block; vertical-align:top; padding-left: 6px; padding-right: 6px; margin-right:8px;border-width:1px; border-style:solid;">
 Sunrise: {{ sunrise }}<br>Sunset: {{ sunset }}<br>
 T: {{ temp }}, H: {{ humidity }}
     <br>Feels Like: {{ feels_like }}
@@ -29,8 +29,8 @@ T: {{ temp }}, H: {{ humidity }}
 Wind: {{ wind_speed }}, {{ wind_compass }} ({{ wind_deg }})
 <br>UV Index: {{ uv_index }}
 </div>
-<div class="big" style="background-color: beige; display:inline-block; padding-left: 6px; padding-right: 6px; margin-right:8px;">
-    Time: {{ sens_time }}<br>Air Quality: {{ sens_pm2_5 }}<br>Temp: {{ sens_temp_c }}<br>Humidity: {{ sens_humidity }}
+<div class="big" style="background-color: beige; display:inline-block; padding-left: 6px; padding-right: 6px; margin-right:8px;border-width:1px; border-style:solid;">
+    Time: {{ time_sens }}<br>Air Quality: {{ pm2_5_sens }}<br>Temp: {{ temp_c_sens }}<br>Humidity: {{ humidity_sens }}
 </div>
 </div>
     <div id="page_links" style="position:absolute; bottom:5px; right:10px;">
