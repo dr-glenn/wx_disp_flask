@@ -13,8 +13,11 @@
     width: 600px;
 }
 .biggest {font-size: 32px;}
+.biggest-bold {font-size: 32px; font-weight: bold;}
 .bigger {font-size: 24px;}
+.bigger-bold {font-size: 24px; font-weight: bold;}
 .big {font-size: 20px;}
+.big-bold {font-size: 20px; font-weight: bold;}
 .normal {font-size: 18px;}
 
 .grid-1 {display: grid;

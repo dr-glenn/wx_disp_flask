@@ -9,6 +9,7 @@ logger = my_logger.setup_logger(__name__,'ow.log', level=logging.DEBUG)
 
 app = Flask(__name__,static_folder='static')
 
+# crossdomain is a decorator
 # got this CORS solution from https://stackoverflow.com/questions/26980713/solve-cross-origin-resource-sharing-with-flask
 def crossdomain(origin=None, methods=None, headers=None,
                 max_age=21600, attach_to_all=True,
@@ -54,13 +55,24 @@ def crossdomain(origin=None, methods=None, headers=None,
 def hello_world():
     return 'Hello World!'
 
+# TODO: each route should look for location params in the request and store those params in the page it generates
+# TODO: each generated page should also store params into link buttons
+
 @app.route('/now')
 def wx_show_current():
-    # TODO: want to know value of the route
+    # TODO: want to know value of the route: use request.path
     route = 'now'
-    wxdata = ow.get_wx_all()
-    obs = ow.parse_wx_curr(wxdata)
-    html = ow.make_wx_current(obs, heading='Current Weather')
+    lon_lat = request.args.get('lon_lat')   # None if param not in request
+    hoursStr = request.args.get('hours')
+    tzOffset = request.args.get('tz')
+    homeName = request.args.get('home_name')
+    if tzOffset:
+        tzOffset = int(tzOffset)
+    else:
+        tzOffset = -8
+    wxdata = ow.get_wx_all(lon_lat)
+    obs = ow.parse_wx_curr(wxdata, tzoff=tzOffset)
+    html = ow.make_wx_current(obs, heading='Current Weather', tzoff=tzOffset, lon_lat=lon_lat, home_name=homeName)
     return html
 
 @app.route('/all_now')
@@ -103,6 +115,7 @@ def get_hourly_divs():
     lon_lat = request.args.get('lon_lat')   # None if param not in request
     hoursStr = request.args.get('hours')
     tzOffset = request.args.get('tz')
+    homeName = request.args.get('home_name')
     if tzOffset:
         tzOffset = int(tzOffset)
     else:
@@ -113,13 +126,21 @@ def get_hourly_divs():
         hours = [1,2,3]
     logger.debug('get_hourly_divs, lon_lat={}, hours={}'.format(lon_lat,hours))
     wxdata = ow.get_wx_all(lon_lat)
-    divs = ow.make_hourly_divs(wxdata, hours=hours, tz=tzOffset)
+    divs = ow.make_hourly_divs(wxdata, hours=hours, tzoff=tzOffset)
     return '<br>\n'.join(divs)
 
 @app.route('/daily')
 def wx_show_all_daily():
-    wxdata = ow.get_wx_all()
-    html = ow.make_daily_fcst_page(wxdata)
+    lon_lat = request.args.get('lon_lat')   # None if param not in request
+    hoursStr = request.args.get('hours')
+    tzOffset = request.args.get('tz')
+    homeName = request.args.get('home_name')
+    if tzOffset:
+        tzOffset = int(tzOffset)
+    else:
+        tzOffset = -8
+    wxdata = ow.get_wx_all(lon_lat, tzOffset)
+    html = ow.make_daily_fcst_page(wxdata, tzoff=tzOffset, lon_lat=lon_lat, home_name=homeName)
     return html
 
 # example of a radar display that I will never make operational
