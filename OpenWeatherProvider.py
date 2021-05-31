@@ -6,6 +6,7 @@
 
 import urllib
 from urllib.request import urlopen,Request
+from urllib.parse import urlencode
 import json
 import datetime as dt
 import Config
@@ -16,7 +17,7 @@ from jinja2 import Environment, FileSystemLoader
 import tail
 import tzinfo_4us as tzhelp
 
-from Config import get_node_addr, make_buttons
+from Config import get_node_addr
 
 logger = my_logger.setup_logger(__name__,'ow.log', level=logging.DEBUG)
 
@@ -33,6 +34,41 @@ Mountain = tzhelp.USTimeZone(-7, "Mountain", "MST", "MDT")
 Pacific  = tzhelp.USTimeZone(-8, "Pacific",  "PST", "PDT")
 
 myTZ = {'-5':Eastern, '-6':Central, '-7': Mountain, '-8':Pacific}
+
+def make_buttons(exclude=[], lon_lat=None, home_name='', tzoff=-8):
+    '''
+    Make page change buttons, but exclude some.
+    Button names are the same as page routes.
+    :param exclude: list of button names to exclude
+    :return: DIV that contains fully constructed buttons
+    '''
+    buttons = []
+    NAV_BUT = {}
+    NAV_BUT['radar'] = ('Radar', get_node_addr(), 'radar.html')
+    NAV_BUT['now'] = ('Current Wx', None, 'now')
+    NAV_BUT['hourly'] = ('Today Fcst', None, 'hourly_divs')
+    NAV_BUT['daily'] = ('Daily Fcst', None, 'daily')
+
+    # construct the request args if any
+    args = {}
+    if lon_lat:
+        args['lon_lat'] = lon_lat
+    if home_name and len(home_name) > 0:
+        args['home_name'] = home_name
+    if tzoff:
+        args['tz'] = tzoff
+    req_args = urlencode(args)
+    logger.debug('make_buttons: req = {}'.format(req_args))
+    for key in exclude:
+        NAV_BUT.pop(key)
+    for key,item in NAV_BUT.items():
+        if not item[1]:
+            link = '/{}?{}'.format(item[2],req_args)
+        else:
+            link = 'http://{}:{}/{}?{}'.format(item[1][0], item[1][1], item[2], req_args)
+        bstr = '<a href="{}"><button>{}</button></a>'.format(link,NAV_BUT[key][0])
+        buttons.append(bstr)
+    return buttons
 
 '''
 OpenWeather defines some strings to describe weather icons,
@@ -53,7 +89,7 @@ def metric_to_english(key, value):
     :param value:
     :return: converted value as a number and units string
     '''
-    logger.debug('metric_to_english: key={}, value={}'.format(key,value))
+    #logger.debug('metric_to_english: key={}, value={}'.format(key,value))
     if key.startswith('temp') or key.startswith('feels_like'):
         return c_to_f(float(value)),'°F'
     elif key == 'wind_speed' or key == 'wind_gust':
@@ -67,7 +103,7 @@ class WxData:
         self.wxurl = Config.darkPrefix + ApiKeys.darksky_key
         self.wxurl += '/' + str(Config.primary_coordinates[0]) + ',' + str(Config.primary_coordinates[1])
         self.wxurl += '?exclude=minutely&units=us'
-        logger.debug('wxurl='+self.wxurl)
+        #logger.debug('wxurl='+self.wxurl)
         self.hasData = False
     def getwx(self):
         self.hasData = False
@@ -93,6 +129,7 @@ class DataParse:
     data be returned as a string, ready for display.
     '''
     def __init__(self,wxdata,dataKeys,tzoff=-8):
+        logger.debug('DataParse: tzoff={}'.format(tzoff))
         tzoffStr = str(tzoff)
         if tzoffStr in myTZ:
             tz_local = myTZ[tzoffStr]
@@ -123,9 +160,9 @@ class DataParse:
                             tz_x = dt.timezone(dt.timedelta(hours=tzoff))
                             tdata = dt.datetime.fromtimestamp(data,tz=tz_x)
                             offset = 0
-                            logger.debug('time={}, offset={}'.format(tdata,offset))
+                            #logger.debug('time={}, offset={}'.format(tdata,offset))
                             offset = tz_local.utcoffset(tdata)  # figures out offset based on tdata - might be wrong near when daylight time changes
-                            logger.debug('time={}, offset={}'.format(tdata,offset))
+                            #logger.debug('time={}, offset={}'.format(tdata,offset))
                             #tzobj = dt.timezone(dt.timedelta(hours=offset))
                             tzobj = dt.timezone(offset)
                         else:
@@ -134,10 +171,11 @@ class DataParse:
                         if key[1] == 'dt':
                             # 'dt' is time of current obs or future forecast. Get day and hour from it for display use.
                             self.obs['day_name'] = [data.strftime('%A'),'']
-                            logger.debug('store dt={}, day={}'.format(str(data),data.strftime('%A')))
+                            #logger.debug('store dt={}, day={}'.format(str(data),data.strftime('%A')))
                             self.obs['hour_name'] = [data.strftime('%I'),' '+data.strftime('%p')]
                         elif key[1] in ('sunrise', 'sunset'):
-                            logger.debug('sunrise/sunset: {}'.format(str(data)))
+
+                            #logger.debug('sunrise/sunset: {}'.format(str(data)))
                             data = data.strftime('%I:%M %p')
                             #logger.debug('sunrise/sunset: {}'.format(str(data)))
                             pass
@@ -150,7 +188,7 @@ class DataParse:
                 # TODO: should probably eliminate key[2]: column 3
                 # Config.metric has value of either 0 or 1
                 self.obs[key[0]] = [data,key[3]]
-                logger.debug('save obs: key=%s, value=%s' %(key[0],str(self.obs[key[0]])))
+                #logger.debug('save obs: key=%s, value=%s' %(key[0],str(self.obs[key[0]])))
             else:
                 # key[2] != Config.metric, so skip this obs
                 # NOTE: this clause only applied to wunderground, which returned some data
@@ -268,8 +306,9 @@ class CurrentObs(DataParse):
         ('weather_icon',        ('weather','icon'), -1, ''),   # name of icon to fetch
     ]
     # other keys: precipProbability, precipType, dewPoint, cloudCover, uvIndex, visibility, ozone
-    def __init__(self,wxdata, tzoff=-8):
+    def __init__(self, wxdata, tzoff=-8):
         #print(wxdata['current'])
+        logger.debug('CurrentObs: tzoff={}'.format(tzoff))
         DataParse.__init__(self,wxdata['current'],self.obsKeys, tzoff)
 
 class FcstDailyData(DataParse):
@@ -381,6 +420,7 @@ def get_home_sensors(fname):
                     units = ''
                 else:
                     sens_val,units = metric_to_english(sens_key, sens_val)
+                    #sens_val = '{:d}'.format(sens_val)
             except:
                 logger.debug('ERROR: get_home_sensors: value={}'.format(value))
             val_dict[sens_key] = sens_val
@@ -388,10 +428,10 @@ def get_home_sensors(fname):
             pass
         elif l[0].find('pm25'):
             pass
-    logger.debug(str(val_dict))
+    logger.debug('get_home_sensors: {}'.format(str(val_dict)))
     return val_dict
 
-def make_wx_current(the_vals, heading='Current Obs'):
+def make_wx_current(the_vals, heading='Current Obs', tzoff=-8, lon_lat=None, home_name=''):
     '''
     Generate web page with jinja2.
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
@@ -419,7 +459,7 @@ def make_wx_current(the_vals, heading='Current Obs'):
     for s in sensors:
         templ_args[s] = sensors[s]
     host,node_port = get_node_addr()
-    buttons = make_buttons(exclude=['hourly', 'now'])  # returns list of HTML string
+    buttons = make_buttons(exclude=['hourly', 'now'], lon_lat=lon_lat, home_name=home_name, tzoff=tzoff)  # returns list of HTML string
     buttons = ''.join(buttons)
     return templ.render(templ_args, node_port=node_port, buttons=buttons)
 
@@ -467,7 +507,7 @@ def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3,4], tzoff=-8):
         dt_obs = dt.datetime.fromisoformat(obs.getObsVal('datetime')[0])
         templ_args['time'] = dt_obs.strftime("%a %I %p")
         divs.append(templ.render(templ_args))
-    logger.debug('made {} DIVs'.format(len(divs)))
+    #logger.debug('made {} DIVs'.format(len(divs)))
     #logger.debug('DIV[0]: {}'.format(str(divs[0])))
     return divs
 
@@ -494,7 +534,7 @@ def make_wx_hourly(the_vals, heading='Hourly Forecast'):
     templ_args['heading'] = heading
     return templ.render(templ_args)
 
-def make_daily_fcst_page(data_all, tzoff=-8, homeName=''):
+def make_daily_fcst_page(data_all, tzoff=-8, lon_lat=None, home_name=''):
     '''
     Generate web page with jinja2.
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
@@ -515,7 +555,6 @@ def make_daily_fcst_page(data_all, tzoff=-8, homeName=''):
     ndays = min(ndays,9)
 
     for day in range(ndays):
-
         #tzobj = dt.timezone(dt.timedelta(hours=tz)) # inside loop in case ndays crosses daylight hours change
         the_vals = parse_wx_daily(data_all, day, tzoff)
         templ_args = {}
@@ -536,10 +575,10 @@ def make_daily_fcst_page(data_all, tzoff=-8, homeName=''):
         templ_args['day_name'] = day_name[:3]
         divs.append(templ.render(templ_args))
     host,node_port = get_node_addr()
-    buttons = make_buttons(exclude=['hourly', 'daily'])  # returns list of HTML string
+    buttons = make_buttons(exclude=['hourly', 'daily'], lon_lat=lon_lat, home_name=home_name, tzoff=tzoff)  # returns list of HTML string
     buttons = ''.join(buttons)
     #logger.debug('make_buttons: {}'.format(buttons))
-    return templ_all.render(divs=divs, node_port=node_port, buttons=buttons, home=homeName)
+    return templ_all.render(divs=divs, node_port=node_port, buttons=buttons, home=home_name)
 
 def make_wx_daily(the_vals, heading='Daily'):
     '''
@@ -584,12 +623,12 @@ def get_wx_all(lon_lat=None, tz_off=-8):
     with urlopen(request) as response:
         jdata = response.read()
     data = json.loads(jdata)
-    logger.debug('get_wx_all: json={}, parsed={}'.format(len(jdata), len(data)))
+    #logger.debug('get_wx_all: json={}, parsed={}'.format(len(jdata), len(data)))
     return data
 
-def parse_wx_curr(data):
+def parse_wx_curr(data, tzoff=-8):
     # Construct the current obs data
-    currObs = CurrentObs(data)
+    currObs = CurrentObs(data, tzoff)
     return currObs
 
 def parse_wx_daily(data, iday=1, tzoff=-8):
