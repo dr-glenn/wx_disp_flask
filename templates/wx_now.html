@@ -10,7 +10,11 @@
 </head>
 <body>
 <div class="main_div">
-<h2>{{ heading }}</h2>
+<h2>{{ heading }}
+    {% if home_name %}
+    at {{ home_name }}
+    {% endif %}
+</h2>
 <p class="bigger">
 {{ day_name }},
 {{ time }}
