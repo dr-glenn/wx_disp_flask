@@ -66,13 +66,14 @@ def wx_show_current():
     hoursStr = request.args.get('hours')
     tzOffset = request.args.get('tz')
     homeName = request.args.get('home_name')
+    radarType = request.args.get('radar_type')
     if tzOffset:
         tzOffset = int(tzOffset)
     else:
         tzOffset = -8
     wxdata = ow.get_wx_all(lon_lat)
     obs = ow.parse_wx_curr(wxdata, tzoff=tzOffset)
-    html = ow.make_wx_current(obs, heading='Current Weather', tzoff=tzOffset, lon_lat=lon_lat, home_name=homeName)
+    html = ow.make_wx_current(obs, heading='Current Weather', tzoff=tzOffset, lon_lat=lon_lat, home_name=homeName, radar_type=radarType)
     return html
 
 @app.route('/all_now')
@@ -135,12 +136,13 @@ def wx_show_all_daily():
     hoursStr = request.args.get('hours')
     tzOffset = request.args.get('tz')
     homeName = request.args.get('home_name')
+    radarType = request.args.get('radar_type')
     if tzOffset:
         tzOffset = int(tzOffset)
     else:
         tzOffset = -8
     wxdata = ow.get_wx_all(lon_lat, tzOffset)
-    html = ow.make_daily_fcst_page(wxdata, tzoff=tzOffset, lon_lat=lon_lat, home_name=homeName)
+    html = ow.make_daily_fcst_page(wxdata, tzoff=tzOffset, lon_lat=lon_lat, home_name=homeName, radar_type=radarType)
     return html
 
 # example of a radar display that I will never make operational

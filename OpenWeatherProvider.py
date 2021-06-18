@@ -35,7 +35,7 @@ Pacific  = tzhelp.USTimeZone(-8, "Pacific",  "PST", "PDT")
 
 myTZ = {'-5':Eastern, '-6':Central, '-7': Mountain, '-8':Pacific}
 
-def make_buttons(exclude=[], lon_lat=None, home_name='', tzoff=-8):
+def make_buttons(exclude=[], lon_lat=None, home_name='', tzoff=-8, radar_type=''):
     '''
     Make page change buttons, but exclude some.
     Button names are the same as page routes.
@@ -57,14 +57,18 @@ def make_buttons(exclude=[], lon_lat=None, home_name='', tzoff=-8):
         args['home_name'] = home_name
     if tzoff:
         args['tz'] = tzoff
+    if radar_type and len(radar_type) > 0:
+        args['radar_type'] = radar_type
     req_args = urlencode(args)
     logger.debug('make_buttons: req = {}'.format(req_args))
     for key in exclude:
         NAV_BUT.pop(key)
     for key,item in NAV_BUT.items():
         if not item[1]:
+            # create link to local page
             link = '/{}?{}'.format(item[2],req_args)
         else:
+            # create link to other site page
             link = 'http://{}:{}/{}?{}'.format(item[1][0], item[1][1], item[2], req_args)
         bstr = '<a href="{}"><button>{}</button></a>'.format(link,NAV_BUT[key][0])
         buttons.append(bstr)
@@ -93,9 +97,9 @@ def metric_to_english(key, value):
     if key.startswith('temp') or key.startswith('feels_like'):
         return c_to_f(float(value)),'°F'
     elif key == 'wind_speed' or key == 'wind_gust':
-        return 2.237 * float(value), 'mph'    # meters/sec to miles/hour
+        return 2.237 * float(value),'mph'    # meters/sec to miles/hour
     else:
-        return value, ''
+        return value,' '
 
 class WxData:
     def __init__(self):
@@ -406,6 +410,7 @@ def get_home_sensors(fname):
         l = line.split(':',maxsplit=1)
         # l[0] is the sensor topic
         # l[1] is the values, including time
+        logger.debug('get_home_sensors: sensor={}'.format(l[0]))
         values_list = l[1].split(',')
         # stuff the values_list into a dict
         for value in values_list:
@@ -420,18 +425,21 @@ def get_home_sensors(fname):
                     units = ''
                 else:
                     sens_val,units = metric_to_english(sens_key, sens_val)
-                    #sens_val = '{:d}'.format(sens_val)
-            except:
+                    #logger.debug('get_home_sensors: metric_to_english={},{}'.format(sens_val,units))
+                    if l[0].find('bme280') != -1:
+                        # bme280 returns float values
+                        sens_val = '{:.1f}'.format(float(sens_val))
+                    elif l[0].find('pm25') != -1:
+                        # pm25 returns integers
+                        pass
+            except Exception as e:
                 logger.debug('ERROR: get_home_sensors: value={}'.format(value))
+                #logger.debug(e)
             val_dict[sens_key] = sens_val
-        if l[0].find('bme280'):
-            pass
-        elif l[0].find('pm25'):
-            pass
     logger.debug('get_home_sensors: {}'.format(str(val_dict)))
     return val_dict
 
-def make_wx_current(the_vals, heading='Current Obs', tzoff=-8, lon_lat=None, home_name=''):
+def make_wx_current(the_vals, heading='Current Obs', tzoff=-8, lon_lat=None, home_name='', radar_type=''):
     '''
     Generate web page with jinja2.
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
@@ -441,25 +449,27 @@ def make_wx_current(the_vals, heading='Current Obs', tzoff=-8, lon_lat=None, hom
     env = Environment(loader=loader)
     templ = env.get_template('wx_now.html')
     templ_keys = ['temp', 'humidity', 'feels_like', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'sunrise', 'sunset', 'uv_index', 'feels_like']
-
     templ_args = {}
+    # load all values from the forecast or obs
     for key in templ_keys:
         templ_args[key],unit = the_vals.getObsVal(key,units=US)
         if key == 'wind_deg':
             templ_args['wind_compass'] = DataParse.wind_compass(templ_args['wind_deg'])
     dt_obs = dt.datetime.fromisoformat(the_vals.getObsVal('datetime')[0])
-    # day-of-week name
-    day_name = dt_obs.date().strftime('%A')
+    # these templ_args are derived and not from forecast provider
+    day_name = dt_obs.date().strftime('%A') # day-of-week name
     templ_args['day_name'] = day_name
     templ_args['time'] = dt_obs.strftime('%I:%M %p')
     templ_args['heading'] = heading
+    if home_name:
+        templ_args['home_name'] = home_name
     # Get home sensors
     sensors = get_home_sensors('../sensors/mqtt_rcv.log')
     # TODO: should modify the template to take a dict of sensors, but for now ...
     for s in sensors:
         templ_args[s] = sensors[s]
     host,node_port = get_node_addr()
-    buttons = make_buttons(exclude=['hourly', 'now'], lon_lat=lon_lat, home_name=home_name, tzoff=tzoff)  # returns list of HTML string
+    buttons = make_buttons(exclude=['hourly', 'now'], lon_lat=lon_lat, home_name=home_name, tzoff=tzoff, radar_type=radar_type)  # returns list of HTML string
     buttons = ''.join(buttons)
     return templ.render(templ_args, node_port=node_port, buttons=buttons)
 
@@ -534,7 +544,7 @@ def make_wx_hourly(the_vals, heading='Hourly Forecast'):
     templ_args['heading'] = heading
     return templ.render(templ_args)
 
-def make_daily_fcst_page(data_all, tzoff=-8, lon_lat=None, home_name=''):
+def make_daily_fcst_page(data_all, tzoff=-8, lon_lat=None, home_name='', radar_type=''):
     '''
     Generate web page with jinja2.
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
@@ -575,7 +585,7 @@ def make_daily_fcst_page(data_all, tzoff=-8, lon_lat=None, home_name=''):
         templ_args['day_name'] = day_name[:3]
         divs.append(templ.render(templ_args))
     host,node_port = get_node_addr()
-    buttons = make_buttons(exclude=['hourly', 'daily'], lon_lat=lon_lat, home_name=home_name, tzoff=tzoff)  # returns list of HTML string
+    buttons = make_buttons(exclude=['hourly', 'daily'], lon_lat=lon_lat, home_name=home_name, tzoff=tzoff, radar_type=radar_type)  # returns list of HTML string
     buttons = ''.join(buttons)
     #logger.debug('make_buttons: {}'.format(buttons))
     return templ_all.render(divs=divs, node_port=node_port, buttons=buttons, home=home_name)
