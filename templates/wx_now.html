@@ -10,14 +10,12 @@
 </head>
 <body>
 <div class="main_div">
-<h2>{{ heading }}
-    {% if home_name %}
-    at {{ home_name }}
-    {% endif %}
-</h2>
 <p class="bigger">
 {{ day_name }},
 {{ time }}
+{% if home_name %}
+    at {{ home_name }}
+{% endif %}
 </p>
 <div>
 <div style="display:inline-block;vertical-align:top; padding-left: 10px; padding-right:10px;">
@@ -36,6 +34,9 @@ Wind: {{ wind_speed }}, {{ wind_compass }} ({{ wind_deg }})
 <div class="big" style="background-color: beige; display:inline-block; padding-left: 6px; padding-right: 6px; margin-right:8px;border-width:1px; border-style:solid;">
     Time: {{ time_sens }}<br>Air Quality: {{ pm2_5_sens }}<br>Temp: {{ temp_c_sens }}<br>Humidity: {{ humidity_sens }}
 </div>
+    <div>
+        <img alt="time plots" src="data:image/png;base64,{{ img_base64 }}" width="500" height="350">
+    </div>
 </div>
     <div id="page_links" style="position:absolute; bottom:5px; right:10px;">
         {{ buttons }}
