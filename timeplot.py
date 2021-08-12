@@ -6,6 +6,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 from flask import send_file
 import base64
+import logging
+logger = logging.getLogger(__name__)
 
 # there are more sensor values, but these are the ones we want
 SENSOR_NAMES = ['time', 'PM2_5', 'temp_c', 'humidity', 'pressure']
@@ -50,6 +52,30 @@ def load_binary(filename):
     with open(filename, 'rb') as file_handle:
         return file_handle.read()
 
+def calc_scale(vals, interval=10):
+    '''
+    Calculate Y min/max for a nice plot.
+    Interval is minimum scale of Y axis.
+    Actual interval must fit the min/max vals and must be multiple of interval.
+    :param vals:
+    :param interval:
+    :return: ymin,ymax
+    '''
+    y0 = min(vals)
+    y1 = max(vals)
+    ylen = y1 - y0
+    '''
+    Examples:
+    ylen=8, interval=10, n_interval=1
+    ylen=27, interval=10, n_interval=3
+    ylen=12, interval=5, n_interval=3
+    '''
+    n_interval = int((ylen + interval) / interval)
+    # TODO: try to round minimum to nearest interval multiple
+    limits = int(min(vals)),int(min(vals))+n_interval*interval
+    print('calc_scale: vals= {},{}. scale= {}, {}'.format(y0,y1,limits[0],limits[1]))
+    return limits
+
 def make_plot(logfile):
     read_log(logfile)
     # now sensor_devs should be filled
@@ -66,15 +92,23 @@ def make_plot(logfile):
             axs[iplt].yaxis.set_major_locator(plt.MaxNLocator(4))
             if dev_key.find('bme280') >= 0:
                 vals = dev.vals['temp_c']
+                vals = [val*1.8+32.0 for val in vals]
+                y0,y1 = calc_scale(vals, interval=5)
+                axs[iplt].yaxis.set_major_locator(plt.MaxNLocator(5))
+                axs[iplt].set_ylim(ymin=y0, ymax=y1)
                 axs[iplt].plot(vtimes, vals)
-                axs[iplt].set_title('Temp C', y=1.0, pad=-14)
+                axs[iplt].set_title('Temp F', y=1.0, pad=-14)
                 iplt += 1
                 vals = dev.vals['humidity']
+                y0,y1 = calc_scale(vals, interval=10)
+                axs[iplt].set_ylim(ymin=y0, ymax=y1)
                 axs[iplt].plot(vtimes, vals)
                 axs[iplt].set_title('Humidity', y=1.0, pad=-14)
                 iplt += 1
             if dev_key.find('pm25') >= 0:
                 vals = [int(v) for v in dev.vals['PM2_5']]
+                y0,y1 = calc_scale(vals, interval=10)
+                axs[iplt].set_ylim(ymin=0, ymax=y1)
                 axs[iplt].plot(vtimes, vals)
                 axs[iplt].set_title('Air Quality 2.5', y=1.0, pad=-14)
                 iplt += 1

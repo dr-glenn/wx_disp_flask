@@ -9,21 +9,22 @@
     <link rel="stylesheet" type="text/css" href="../static/style.css" />
 </head>
 <body>
-<div class="main_div">
-<p class="bigger">
+<div class="main_div grid2">
+    <div class="grid2-c1-r1">
+<div class="bigger">
 {{ day_name }},
 {{ time }}
 {% if home_name %}
+    <br>
     at {{ home_name }}
 {% endif %}
-</p>
-<div>
-<div style="display:inline-block;vertical-align:top; padding-left: 10px; padding-right:10px;">
+</div>
+
 {{ weather_description }}<br>
 <img alt="{{ weather_icon }}" src="http://openweathermap.org/img/wn/{{ weather_icon }}.png" >
 
 </div>
-<div class="big" style="background-color: beige; display:inline-block; vertical-align:top; padding-left: 6px; padding-right: 6px; margin-right:8px;border-width:1px; border-style:solid;">
+<div class="big grid2-c1-r2 box-ivory">
 Sunrise: {{ sunrise }}<br>Sunset: {{ sunset }}<br>
 T: {{ temp }}, H: {{ humidity }}
     <br>Feels Like: {{ feels_like }}
@@ -31,16 +32,17 @@ T: {{ temp }}, H: {{ humidity }}
 Wind: {{ wind_speed }}, {{ wind_compass }} ({{ wind_deg }})
 <br>UV Index: {{ uv_index }}
 </div>
-<div class="big" style="background-color: beige; display:inline-block; padding-left: 6px; padding-right: 6px; margin-right:8px;border-width:1px; border-style:solid;">
+<div class="big grid2-c1-r3 box-ivory">
     Time: {{ time_sens }}<br>Air Quality: {{ pm2_5_sens }}<br>Temp: {{ temp_c_sens }}<br>Humidity: {{ humidity_sens }}
 </div>
-    <div>
+
+    <div class="grid2-c2" style="margin: auto;">
         <img alt="time plots" src="data:image/png;base64,{{ img_base64 }}" width="500" height="350">
     </div>
-</div>
-    <div id="page_links" style="position:absolute; bottom:5px; right:10px;">
+    <div id="page_links" class="grid2-r4" style="margin-left: auto; margin-right:20px;">
         {{ buttons }}
     </div>
+</div>
 
 </div>
 </body>
