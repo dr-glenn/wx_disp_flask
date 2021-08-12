@@ -15,6 +15,7 @@ import logging
 import my_logger
 from jinja2 import Environment, FileSystemLoader
 import tail
+import timeplot
 import tzinfo_4us as tzhelp
 
 from Config import get_node_addr
@@ -471,7 +472,8 @@ def make_wx_current(the_vals, heading='Current Obs', tzoff=-8, lon_lat=None, hom
     host,node_port = get_node_addr()
     buttons = make_buttons(exclude=['hourly', 'now'], lon_lat=lon_lat, home_name=home_name, tzoff=tzoff, radar_type=radar_type)  # returns list of HTML string
     buttons = ''.join(buttons)
-    return templ.render(templ_args, node_port=node_port, buttons=buttons)
+    time_plot = timeplot.stream_plot()
+    return templ.render(templ_args, node_port=node_port, img_base64=time_plot, buttons=buttons)
 
 def make_hourly_fcst_page(data_all, heading='Today', hours=[1,2,3,6,9]):
     '''
