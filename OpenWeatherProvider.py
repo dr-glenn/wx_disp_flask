@@ -472,6 +472,7 @@ def make_wx_current(the_vals, heading='Current Obs', tzoff=-8, lon_lat=None, hom
     host,node_port = get_node_addr()
     buttons = make_buttons(exclude=['hourly', 'now'], lon_lat=lon_lat, home_name=home_name, tzoff=tzoff, radar_type=radar_type)  # returns list of HTML string
     buttons = ''.join(buttons)
+    logger.debug('call stream_plot')
     time_plot = timeplot.stream_plot()
     return templ.render(templ_args, node_port=node_port, img_base64=time_plot, buttons=buttons)
 

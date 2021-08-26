@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 from flask import send_file
 import base64
 import logging
-logger = logging.getLogger(__name__)
+import my_logger
+logger = my_logger.setup_logger(__name__,'ow.log', level=logging.DEBUG)
 
 # there are more sensor values, but these are the ones we want
 SENSOR_NAMES = ['time', 'PM2_5', 'temp_c', 'humidity', 'pressure']
@@ -30,7 +31,7 @@ def log_parse(line):
     if not sens_dev in sensor_devs:
         sensor_devs[sens_dev] = SensorVals(sens_dev)
         location,computer,sensor = sens_dev.split('/')
-        print('{},{},{}'.format(location,computer,sensor))
+        logger.debug('{},{},{}'.format(location,computer,sensor))
     ll = line[fld1+1:].strip()
     ff = ll.split(',')
     for f in ff:
@@ -73,7 +74,7 @@ def calc_scale(vals, interval=10):
     n_interval = int((ylen + interval) / interval)
     # TODO: try to round minimum to nearest interval multiple
     limits = int(min(vals)),int(min(vals))+n_interval*interval
-    print('calc_scale: vals= {},{}. scale= {}, {}'.format(y0,y1,limits[0],limits[1]))
+    logger.debug('calc_scale: vals= {},{}. scale= {}, {}'.format(y0,y1,limits[0],limits[1]))
     return limits
 
 def make_plot(logfile):
@@ -84,9 +85,9 @@ def make_plot(logfile):
     iplt = 0
     for dev_key in sensor_devs:
         dev = sensor_devs[dev_key]
-        print('device = {}'.format(dev.name))
+        logger.debug('device = {}'.format(dev.name))
         for key in dev.vals:
-            print('  key={} has {} values'.format(key,len(dev.vals[key])))
+            logger.debug('  key={} has {} values'.format(key,len(dev.vals[key])))
         if dev_key.find('bme280') >= 0 or dev_key.find('pm25') >= 0:
             vtimes = [dt.datetime.fromisoformat(t) for t in dev.vals['time']]
             axs[iplt].yaxis.set_major_locator(plt.MaxNLocator(4))
@@ -117,6 +118,7 @@ def make_plot(logfile):
 
 def stream_plot(logfile='../sensors/mqtt_rcv.log'):
     global sensor_devs
+    logger.debug('stream_plot: start')
     fig,axs = make_plot(logfile)
     # this technique from https://stackoverflow.com/questions/14824522/dynamically-serving-a-matplotlib-image-to-the-web-using-python
     # it stuffs base64 encoded image into HTML IMG tag.
@@ -137,7 +139,7 @@ def main(logfile):
     plt.savefig(buf, format='png')
     img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8').replace('\n', '')
     buf.close()
-    print('data: image/png;base64,')
+    logger.debug('data: image/png;base64,')
     # and then print img_base64 into HTTP stream
     # or Flask can do this:
     return send_file(buf, mimetype='image/png')
