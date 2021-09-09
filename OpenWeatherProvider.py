@@ -399,16 +399,20 @@ def make_html(obs, hourly, daily, heading='Current'):
     daily_vals = [[key,daily.getObsStr(key)] for key in daily.obs]
     return templ.render(heading=heading, obs=obs_vals, hourly=hourly_vals, hour_name='13', daily=daily_vals, daily_name='Someday')
 
-def get_home_sensors(fname):
+def get_home_sensors(fname, sys_name='gn-pi-zero-1'):
     val_dict = {}
     f = open(fname, 'r')
-    sens_str = tail.tail(f, lines=2)
+    sens_str = tail.tail(f, lines=4)
     sens_lines = sens_str.split('\n')
     # lines look like this:
-    # pi_zero/pm25: time=2021-05-03T14:31:01,PM1.0=2,PM2.5=4,PM10.0=9
-    # pi_zero/bme280: time=2021-05-03T14:31:06,temp_c=21.2,humidity=44.7,pressure=1008.1
+    # gn_home/gn-pi-zero-1/pm25: time=2021-05-03T14:31:01,PM1.0=2,PM2.5=4,PM10.0=9
+    # gn_home/gn-pi-zero-1/bme280: time=2021-05-03T14:31:06,temp_c=21.2,humidity=44.7,pressure=1008.1
     for line in sens_lines:
         l = line.split(':',maxsplit=1)
+        if sys_name and l[0].find(sys_name) == -1:
+            # might have readings from more than one sensor computer
+            # don't yet have a proper way to handle that, so only accept one of them
+            continue
         # l[0] is the sensor topic
         # l[1] is the values, including time
         logger.debug('get_home_sensors: sensor={}'.format(l[0]))

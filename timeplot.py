@@ -26,13 +26,16 @@ class SensorVals:
 def log_parse(line):
     global sensor_devs
     values = {}
-    fld1 = line.find(':')
-    sens_dev = line[:fld1].strip()
+    l = line.split(':',maxsplit=1)
+    #fld1 = line.find(':')
+    #sens_dev = line[:fld1].strip()
+    sens_dev = l[0].strip()
     if not sens_dev in sensor_devs:
         sensor_devs[sens_dev] = SensorVals(sens_dev)
         location,computer,sensor = sens_dev.split('/')
         logger.debug('{},{},{}'.format(location,computer,sensor))
-    ll = line[fld1+1:].strip()
+    #ll = line[fld1+1:].strip()
+    ll = l[1].strip()
     ff = ll.split(',')
     for f in ff:
         fld_name,fld_val = f.split('=')
@@ -77,49 +80,82 @@ def calc_scale(vals, interval=10):
     logger.debug('calc_scale: vals= {},{}. scale= {}, {}'.format(y0,y1,limits[0],limits[1]))
     return limits
 
-def make_plot(logfile):
+def make_plot(logfile, sys_name='gn-pi-zero-1'):
+    '''
+    Plot sensor readings for the current day
+    :param logfile: daily file of readings from devices
+    :param sys_name: default is my outdoor Pi. If value is None, plot all devices found
+    :return:
+    '''
+    global sensor_devs  # SensorVals object for each computer-sensor
     read_log(logfile)
     # now sensor_devs should be filled
     plt.figure(dpi=100.0, figsize=(6,4))
     fig,axs = plt.subplots(3)
-    iplt = 0
-    for dev_key in sensor_devs:
+    #iplt = 0
+    axnum = {'temp_c': 0, 'humidity': 1, 'PM2_5': 2}
+    yaxlim = {} # limits accumulated if there are multiple devices on one plot
+    dev_keys = sorted(sensor_devs.keys())
+    logger.debug('dev_keys:sorted = {}'.format(dev_keys))
+    for dev_key in dev_keys:
+        location,computer,sensor = dev_key.split('/')
+        legend_label = computer[-6:]
+        if sys_name and sys_name.find(computer) == -1:
+            continue    # don't plot this data
         dev = sensor_devs[dev_key]
         logger.debug('device = {}'.format(dev.name))
         for key in dev.vals:
             logger.debug('  key={} has {} values'.format(key,len(dev.vals[key])))
         if dev_key.find('bme280') >= 0 or dev_key.find('pm25') >= 0:
             vtimes = [dt.datetime.fromisoformat(t) for t in dev.vals['time']]
-            axs[iplt].yaxis.set_major_locator(plt.MaxNLocator(4))
             if dev_key.find('bme280') >= 0:
-                vals = dev.vals['temp_c']
+                senskey = 'temp_c'
+                iplt = axnum[senskey]
+                vals = dev.vals[senskey]
                 vals = [val*1.8+32.0 for val in vals]
                 y0,y1 = calc_scale(vals, interval=5)
+                if senskey in yaxlim:
+                    yaxlim[senskey] = (min(yaxlim[senskey][0],y0), max(yaxlim[senskey][1],y1))
+                else:
+                    yaxlim[senskey] = (y0,y1)
                 axs[iplt].yaxis.set_major_locator(plt.MaxNLocator(5))
-                axs[iplt].set_ylim(ymin=y0, ymax=y1)
-                axs[iplt].plot(vtimes, vals)
+                axs[iplt].set_ylim(ymin=yaxlim[senskey][0], ymax=yaxlim[senskey][1])
+                axs[iplt].plot(vtimes, vals, label=legend_label)
                 axs[iplt].set_title('Temp F', y=1.0, pad=-14)
-                iplt += 1
-                vals = dev.vals['humidity']
+                ########
+                senskey = 'humidity'
+                iplt = axnum[senskey]
+                vals = dev.vals[senskey]
                 y0,y1 = calc_scale(vals, interval=10)
-                axs[iplt].set_ylim(ymin=y0, ymax=y1)
-                axs[iplt].plot(vtimes, vals)
+                if senskey in yaxlim:
+                    yaxlim[senskey] = (min(yaxlim[senskey][0],y0), max(yaxlim[senskey][1],y1))
+                else:
+                    yaxlim[senskey] = (y0,y1)
+                axs[iplt].yaxis.set_major_locator(plt.MaxNLocator(4))
+                axs[iplt].set_ylim(ymin=yaxlim[senskey][0], ymax=yaxlim[senskey][1])
+                axs[iplt].plot(vtimes, vals, label=legend_label)
                 axs[iplt].set_title('Humidity', y=1.0, pad=-14)
-                iplt += 1
             if dev_key.find('pm25') >= 0:
-                vals = [int(v) for v in dev.vals['PM2_5']]
+                senskey = 'PM2_5'
+                iplt = axnum[senskey]
+                vals = [int(v) for v in dev.vals[senskey]]
                 y0,y1 = calc_scale(vals, interval=10)
-                axs[iplt].set_ylim(ymin=0, ymax=y1)
-                axs[iplt].plot(vtimes, vals)
+                if senskey in yaxlim:
+                    yaxlim[senskey] = (min(yaxlim[senskey][0],y0), max(yaxlim[senskey][1],y1))
+                else:
+                    yaxlim[senskey] = (y0,y1)
+                axs[iplt].yaxis.set_major_locator(plt.MaxNLocator(4))
+                axs[iplt].set_ylim(ymin=yaxlim[senskey][0], ymax=yaxlim[senskey][1])
+                axs[iplt].plot(vtimes, vals, label=legend_label)
                 axs[iplt].set_title('Air Quality 2.5', y=1.0, pad=-14)
-                iplt += 1
     plt.gcf().autofmt_xdate()
+    axs[0].legend(loc="upper right")
     return fig,axs
 
 def stream_plot(logfile='../sensors/mqtt_rcv.log'):
     global sensor_devs
     logger.debug('stream_plot: start')
-    fig,axs = make_plot(logfile)
+    fig,axs = make_plot(logfile, sys_name=None)
     # this technique from https://stackoverflow.com/questions/14824522/dynamically-serving-a-matplotlib-image-to-the-web-using-python
     # it stuffs base64 encoded image into HTML IMG tag.
     buf = io.BytesIO()
