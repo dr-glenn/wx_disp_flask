@@ -8,6 +8,7 @@ import urllib
 from urllib.request import urlopen,Request
 from urllib.parse import urlencode
 import json
+import csv
 import datetime as dt
 import Config
 import ApiKeys
@@ -383,6 +384,7 @@ class FcstHourlyData(DataParse):
     def __init__(self,wxdata,ihour, tzoff=-8):
         DataParse.__init__(self,wxdata['hourly'][ihour],self.obsKeys,tzoff)
 
+# I think this is only used for testing
 def make_html(obs, hourly, daily, heading='Current'):
     '''
     Generate web page with jinja2.
@@ -399,7 +401,24 @@ def make_html(obs, hourly, daily, heading='Current'):
     daily_vals = [[key,daily.getObsStr(key)] for key in daily.obs]
     return templ.render(heading=heading, obs=obs_vals, hourly=hourly_vals, hour_name='13', daily=daily_vals, daily_name='Someday')
 
+def get_latest_sensors(fname, sys_name='gn-pi-zero-1'):
+    '''
+    Get most recent sensor values from a CSV file, using Pandas?
+    :param fname: CSV filename
+    :param sys_name: computer name for sensors
+    :return: dict that contains sensor names as key to values. Values are strings
+    '''
+    val_dict = {}
+    return val_dict
+
 def get_home_sensors(fname, sys_name='gn-pi-zero-1'):
+    '''
+    Read latest lines from sensor logfiles. Search for match with sys_name.
+    Parse the lines which have been written in my custom text format.
+    :param fname: logfile written by process mqtt_rcv.py
+    :param sys_name: computer name for sensors
+    :return: dict that contains sensor names as key to values. Values are strings
+    '''
     val_dict = {}
     f = open(fname, 'r')
     sens_str = tail.tail(f, lines=4)
@@ -641,11 +660,13 @@ def get_wx_all(lon_lat=None, tz_off=-8):
         jdata = response.read()
     data = json.loads(jdata)
     #logger.debug('get_wx_all: json={}, parsed={}'.format(len(jdata), len(data)))
+    logger.debug('get_wx_all: return data len={}'.format(len(data)))
     return data
 
 def parse_wx_curr(data, tzoff=-8):
     # Construct the current obs data
     currObs = CurrentObs(data, tzoff)
+    logger.debug('parse_wx_curr: return currObs')
     return currObs
 
 def parse_wx_daily(data, iday=1, tzoff=-8):
@@ -664,6 +685,7 @@ def parse_wx_hourly(data, ihour=1, tzoff=-8):
     return currObs
 
 if __name__ == '__main__':
+    # This is only run when testing
     # get OpenWeather data
     wx_fcst_url = 'https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&appid={API_key}&exclude=minutely&units=metric'.format(
         lat=Config.location[1], lon=Config.location[0], API_key=ApiKeys.openweather_key)
