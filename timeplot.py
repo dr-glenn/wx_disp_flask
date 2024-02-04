@@ -94,6 +94,12 @@ def show_sensor_devs():
         logger.debug('-- key = {}'.format(key))
 
 def read_log(fname):
+    '''
+    Read sensor log files that are created by a separate MQTT client process.
+    I generate a new file every day, so sensor data starts at midnight.
+    :param fname: the log file name
+    :return:
+    '''
     with open(fname, 'r') as df:
         lines = df.readlines()
     for line in lines:
@@ -237,6 +243,12 @@ def stream_plot(logfile='../sensors/mqtt_rcv.log'):
     return img_base64
 
 def main(logfile, system='gn-pi-zero-1'):
+    '''
+    Called when testing and running this program standalone.
+    :param logfile:
+    :param system:
+    :return:
+    '''
     make_plot(logfile, sys_name=system)
     '''
     # this technique from https://stackoverflow.com/questions/14824522/dynamically-serving-a-matplotlib-image-to-the-web-using-python

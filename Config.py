@@ -8,7 +8,6 @@ bFullScreen = False # has to be True for R-Pi touchscreen version
 # completed under the RADAR section
 primary_coordinates = -121.95, 36.9764016   # Change to your Lat/Lon
 location = primary_coordinates
-darkPrefix ='https://api.darksky.net/forecast/'
 openweatherPrefix = 'https://api.openweathermap.org/data/2.5/'
 #primary_location = LatLng(primary_coordinates[0], primary_coordinates[1])
 

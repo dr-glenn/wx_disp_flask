@@ -46,10 +46,11 @@ def make_buttons(exclude=[], lon_lat=None, home_name='', tzoff=-8, radar_type=''
     '''
     buttons = []
     NAV_BUT = {}
-    NAV_BUT['radar'] = ('Radar', get_node_addr(), 'radar.html')
-    NAV_BUT['now'] = ('Current Wx', None, 'now')
-    NAV_BUT['hourly'] = ('Today Fcst', None, 'hourly_divs')
-    NAV_BUT['daily'] = ('Daily Fcst', None, 'daily')
+    #NAV_BUT['radar']    = ('Radar', get_node_addr(), 'radar.html')  # radar is a node.js page
+    NAV_BUT['radar']    = ('Radar', None, 'static/radar.html')  # radar is a node.js page
+    NAV_BUT['now']      = ('Current Wx', None, 'now')           # this is a flask page
+    NAV_BUT['hourly']   = ('Today Fcst', None, 'hourly_divs')   # this is a flask page
+    NAV_BUT['daily']    = ('Daily Fcst', None, 'daily')         # this is a flask page
 
     # construct the request args if any
     args = {}
@@ -63,7 +64,7 @@ def make_buttons(exclude=[], lon_lat=None, home_name='', tzoff=-8, radar_type=''
         args['radar_type'] = radar_type
     req_args = urlencode(args)
     logger.debug('make_buttons: req = {}'.format(req_args))
-    for key in exclude:
+    for key in exclude:     # some of the buttons should not be present on the page
         NAV_BUT.pop(key)
     for key,item in NAV_BUT.items():
         if not item[1]:
@@ -103,27 +104,6 @@ def metric_to_english(key, value):
     else:
         return value,' '
 
-class WxData:
-    def __init__(self):
-        self.wxdata = None
-        self.wxurl = Config.darkPrefix + ApiKeys.darksky_key
-        self.wxurl += '/' + str(Config.primary_coordinates[0]) + ',' + str(Config.primary_coordinates[1])
-        self.wxurl += '?exclude=minutely&units=us'
-        #logger.debug('wxurl='+self.wxurl)
-        self.hasData = False
-    def getwx(self):
-        self.hasData = False
-        self.wxreply = urllib.request.urlopen(self.wxurl)
-        wxstr = self.wxreply.read()
-        logger.debug('wxstr: %s' %(wxstr[:200]))
-        self.wxdata = json.loads(wxstr)
-        self.hasData = True
-    def getData(self):
-        if self.hasData:
-            return self.wxdata
-        else:
-            return None
-        
 class DataParse:
     '''
     Abstract Class.
@@ -497,7 +477,8 @@ def make_wx_current(the_vals, heading='Current Obs', tzoff=-8, lon_lat=None, hom
     buttons = ''.join(buttons)
     logger.debug('call stream_plot')
     time_plot = timeplot.stream_plot()
-    return templ.render(templ_args, node_port=node_port, img_base64=time_plot, buttons=buttons)
+    #return templ.render(templ_args, node_port=node_port, img_base64=time_plot, buttons=buttons)
+    return templ.render(templ_args, img_base64=time_plot, buttons=buttons)
 
 def make_hourly_fcst_page(data_all, heading='Today', hours=[1,2,3,6,9]):
     '''
@@ -614,7 +595,8 @@ def make_daily_fcst_page(data_all, tzoff=-8, lon_lat=None, home_name='', radar_t
     buttons = make_buttons(exclude=['hourly', 'daily'], lon_lat=lon_lat, home_name=home_name, tzoff=tzoff, radar_type=radar_type)  # returns list of HTML string
     buttons = ''.join(buttons)
     #logger.debug('make_buttons: {}'.format(buttons))
-    return templ_all.render(divs=divs, node_port=node_port, buttons=buttons, home=home_name)
+    #return templ_all.render(divs=divs, node_port=node_port, buttons=buttons, home=home_name)
+    return templ_all.render(divs=divs, buttons=buttons, home=home_name)
 
 def make_wx_daily(the_vals, heading='Daily'):
     '''
@@ -653,7 +635,7 @@ def get_wx_all(lon_lat=None, tz_off=-8):
     else:
         lon = Config.location[0]
         lat = Config.location[1]
-    wx_fcst_url = 'https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&appid={API_key}&exclude=minutely&units=metric'.format(
+    wx_fcst_url = Config.openweatherPrefix+'onecall?lat={lat}&lon={lon}&appid={API_key}&exclude=minutely&units=metric'.format(
     lat=lat, lon=lon, API_key=ApiKeys.openweather_key)
     request = Request(wx_fcst_url)
     with urlopen(request) as response:
@@ -687,7 +669,7 @@ def parse_wx_hourly(data, ihour=1, tzoff=-8):
 if __name__ == '__main__':
     # This is only run when testing
     # get OpenWeather data
-    wx_fcst_url = 'https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&appid={API_key}&exclude=minutely&units=metric'.format(
+    wx_fcst_url = Config.openweatherPrefix+'onecall?lat={lat}&lon={lon}&appid={API_key}&exclude=minutely&units=metric'.format(
         lat=Config.location[1], lon=Config.location[0], API_key=ApiKeys.openweather_key)
     request = Request(wx_fcst_url)
     with urlopen(request) as response:

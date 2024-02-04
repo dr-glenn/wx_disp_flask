@@ -1,10 +1,11 @@
-from flask import Flask, make_response, request, current_app
+from flask import Flask, make_response, request, current_app, send_from_directory
 from functools import update_wrapper
 from datetime import timedelta
 import OpenWeatherProvider as ow
-import radar_disp as radar
+#import radar_disp as radar
 import logging
 import my_logger
+from pathlib import Path
 logger = my_logger.setup_logger(__name__,'ow.log', level=logging.DEBUG)
 
 app = Flask(__name__,static_folder='static')
@@ -146,9 +147,15 @@ def wx_show_all_daily():
     return html
 
 # example of a radar display that I will never make operational
+"""
 @app.route('/radar')
 def radar_show():
     return radar.get_html()
+"""
+
+@app.route('/node_radar')
+def node_radar():
+    pass
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
