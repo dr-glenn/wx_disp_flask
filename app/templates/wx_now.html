@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Wx Current</title>
+    <style>
+    img { border: 2px solid; }
+    </style>
+    <link rel="stylesheet" type="text/css" href="../static/style.css" />
+</head>
+<body>
+<div class="main_div grid2">
+    <div class="grid2-c1-r1">
+<div class="bigger">
+{{ day_name }},
+{{ time }}
+{% if home_name %}
+    <br>
+    at {{ home_name }}
+{% endif %}
+</div>
+
+{{ weather_description }}<br>
+<img alt="{{ weather_icon }}" src="http://openweathermap.org/img/wn/{{ weather_icon }}.png" >
+
+</div>
+<div class="big grid2-c1-r2 box-ivory">
+Sunrise: {{ sunrise }}<br>Sunset: {{ sunset }}<br>
+T: {{ temp }}, H: {{ humidity }}
+    <br>Feels Like: {{ feels_like }}
+<br>
+Wind: {{ wind_speed }}, {{ wind_compass }} ({{ wind_deg }})
+<br>UV Index: {{ uv_index }}
+</div>
+<div class="big grid2-c1-r3 box-ivory">
+    Time: {{ time_sens }}<br>Air Quality: {{ pm2_5_sens }}<br>Temp: {{ temp_c_sens }}<br>Humidity: {{ humidity_sens }}
+</div>
+
+    <div class="grid2-c2" style="margin: auto;">
+        <img alt="time plots" src="data:image/png;base64,{{ img_base64 }}" width="500" height="350">
+    </div>
+    <div id="page_links" class="grid2-r4" style="margin-left: auto; margin-right:20px;">
+        {{ buttons }}
+    </div>
+</div>
+
+</div>
+</body>
+</html>

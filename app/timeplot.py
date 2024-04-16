@@ -10,7 +10,7 @@ import base64
 import json
 import logging
 import my_logger
-logger = my_logger.setup_logger(__name__,'ow.log', level=logging.DEBUG)
+logger = my_logger.setup_logger(__name__, '../ow.log', level=logging.DEBUG)
 
 # values found in the MQTT JSON messages
 # there are more sensor values, but these are the ones we want

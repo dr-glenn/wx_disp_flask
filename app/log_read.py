@@ -3,7 +3,7 @@
 import json
 import logging
 import my_logger
-logger = my_logger.setup_logger(__name__,'log_read.log', level=logging.DEBUG)
+logger = my_logger.setup_logger(__name__, '../log_read.log', level=logging.DEBUG)
 sensor_devs = dict()
 def log_parse_json(line):
     global sensor_devs
