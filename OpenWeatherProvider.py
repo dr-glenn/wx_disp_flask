@@ -426,6 +426,9 @@ def get_home_sensors(fname, sys_name='gn-pi-zero-1'):
     # lines look like this:
     # gn_home/gn-pi-zero-1/pm25: time=2021-05-03T14:31:01,PM1.0=2,PM2.5=4,PM10.0=9
     # gn_home/gn-pi-zero-1/bme280: time=2021-05-03T14:31:06,temp_c=21.2,humidity=44.7,pressure=1008.1
+    #{"time": "2024-08-20T17:55:31", "temp_c": "23.6", "temp_f": "74.4", "humidity": "56.5", "pressure": "1010.3", "topic": "gn_home/gn-pi-zero-2/bme280/J"}
+    #{"time": "2024-08-20T17:55:31", "pm10": 2, "pm25": 2, "pm100": 2, "topic": "gn_home/gn-pi-zero-2/pm25/J"}
+
     for line in sens_lines:
         l = line.split(':',maxsplit=1)
         if sys_name and l[0].find(sys_name) == -1:
@@ -488,7 +491,7 @@ def make_wx_current(the_vals, heading='Current Obs', tzoff=-8, lon_lat=None, hom
     if home_name:
         templ_args['home_name'] = home_name
     # Get home sensors
-    sensors = get_home_sensors('../sensors/mqtt_rcv.log')
+    sensors = get_home_sensors('../sensors/mqtt_rcv.log', sys_name='gn-pi-zero-2')
     # TODO: should modify the template to take a dict of sensors, but for now ...
     for s in sensors:
         templ_args[s] = sensors[s]
@@ -653,7 +656,7 @@ def get_wx_all(lon_lat=None, tz_off=-8):
     else:
         lon = Config.location[0]
         lat = Config.location[1]
-    wx_fcst_url = 'https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&appid={API_key}&exclude=minutely&units=metric'.format(
+    wx_fcst_url = Config.openweatherPrefix + 'onecall?lat={lat}&lon={lon}&appid={API_key}&exclude=minutely&units=metric'.format(
     lat=lat, lon=lon, API_key=ApiKeys.openweather_key)
     request = Request(wx_fcst_url)
     with urlopen(request) as response:
@@ -687,7 +690,7 @@ def parse_wx_hourly(data, ihour=1, tzoff=-8):
 if __name__ == '__main__':
     # This is only run when testing
     # get OpenWeather data
-    wx_fcst_url = 'https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&appid={API_key}&exclude=minutely&units=metric'.format(
+    wx_fcst_url = Config.openweatherPrefix + 'onecall?lat={lat}&lon={lon}&appid={API_key}&exclude=minutely&units=metric'.format(
         lat=Config.location[1], lon=Config.location[0], API_key=ApiKeys.openweather_key)
     request = Request(wx_fcst_url)
     with urlopen(request) as response:
