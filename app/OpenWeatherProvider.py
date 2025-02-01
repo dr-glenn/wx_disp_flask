@@ -4,24 +4,27 @@
 # This page describes the values returned: https://darksky.net/dev/docs#api-request-types
 # Or just look at this page for an example: https://darksky.net/dev/docs
 
-import urllib
 from urllib.request import urlopen,Request
 from urllib.parse import urlencode
 import json
-import csv
 import datetime as dt
+import os
+
+from flask import url_for
+
 import Config
 import ApiKeys
 import logging
 import my_logger
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, PackageLoader, select_autoescape
 import tail
 import timeplot
 import tzinfo_4us as tzhelp
 
 from Config import get_node_addr
+from sensor_in import read_log, sensor_devs
 
-logger = my_logger.setup_logger(__name__,'ow.log', level=logging.DEBUG)
+logger = my_logger.setup_logger(__name__, '../ow.log', level=logging.DEBUG)
 
 # units for values: temperature, wind
 METRIC=0
@@ -46,10 +49,11 @@ def make_buttons(exclude=[], lon_lat=None, home_name='', tzoff=-8, radar_type=''
     '''
     buttons = []
     NAV_BUT = {}
-    NAV_BUT['radar'] = ('Radar', get_node_addr(), 'radar.html')
-    NAV_BUT['now'] = ('Current Wx', None, 'now')
-    NAV_BUT['hourly'] = ('Today Fcst', None, 'hourly_divs')
-    NAV_BUT['daily'] = ('Daily Fcst', None, 'daily')
+    #NAV_BUT['radar']    = ('Radar', get_node_addr(), 'radar.html')  # radar is a node.js page
+    NAV_BUT['radar']    = ('Radar', None, 'static/radar.html')  # radar is a node.js page
+    NAV_BUT['now']      = ('Current Wx', None, 'now')           # this is a flask page
+    NAV_BUT['hourly']   = ('Today Fcst', None, 'hourly_divs')   # this is a flask page
+    NAV_BUT['daily']    = ('Daily Fcst', None, 'daily')         # this is a flask page
 
     # construct the request args if any
     args = {}
@@ -63,7 +67,7 @@ def make_buttons(exclude=[], lon_lat=None, home_name='', tzoff=-8, radar_type=''
         args['radar_type'] = radar_type
     req_args = urlencode(args)
     logger.debug('make_buttons: req = {}'.format(req_args))
-    for key in exclude:
+    for key in exclude:     # some of the buttons should not be present on the page
         NAV_BUT.pop(key)
     for key,item in NAV_BUT.items():
         if not item[1]:
@@ -103,27 +107,6 @@ def metric_to_english(key, value):
     else:
         return value,' '
 
-class WxData:
-    def __init__(self):
-        self.wxdata = None
-        self.wxurl = Config.darkPrefix + ApiKeys.darksky_key
-        self.wxurl += '/' + str(Config.primary_coordinates[0]) + ',' + str(Config.primary_coordinates[1])
-        self.wxurl += '?exclude=minutely&units=us'
-        #logger.debug('wxurl='+self.wxurl)
-        self.hasData = False
-    def getwx(self):
-        self.hasData = False
-        self.wxreply = urllib.request.urlopen(self.wxurl)
-        wxstr = self.wxreply.read()
-        logger.debug('wxstr: %s' %(wxstr[:200]))
-        self.wxdata = json.loads(wxstr)
-        self.hasData = True
-    def getData(self):
-        if self.hasData:
-            return self.wxdata
-        else:
-            return None
-        
 class DataParse:
     '''
     Abstract Class.
@@ -391,7 +374,8 @@ def make_html(obs, hourly, daily, heading='Current'):
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
     :return:
     '''
-    loader = FileSystemLoader('./templates')
+    path = os.path.join(os.path.dirname(__file__), 'templates')
+    loader = FileSystemLoader(searchpath=path)
     env = Environment(loader=loader)
     templ = env.get_template('wx_now_all.html')
     ihour = 12
@@ -400,16 +384,6 @@ def make_html(obs, hourly, daily, heading='Current'):
     hourly_vals = [[key,hourly.getObsStr(key)] for key in hourly.obs]
     daily_vals = [[key,daily.getObsStr(key)] for key in daily.obs]
     return templ.render(heading=heading, obs=obs_vals, hourly=hourly_vals, hour_name='13', daily=daily_vals, daily_name='Someday')
-
-def get_latest_sensors(fname, sys_name='gn-pi-zero-1'):
-    '''
-    Get most recent sensor values from a CSV file, using Pandas?
-    :param fname: CSV filename
-    :param sys_name: computer name for sensors
-    :return: dict that contains sensor names as key to values. Values are strings
-    '''
-    val_dict = {}
-    return val_dict
 
 def get_home_sensors(fname, sys_name='gn-pi-zero-1'):
     '''
@@ -426,9 +400,6 @@ def get_home_sensors(fname, sys_name='gn-pi-zero-1'):
     # lines look like this:
     # gn_home/gn-pi-zero-1/pm25: time=2021-05-03T14:31:01,PM1.0=2,PM2.5=4,PM10.0=9
     # gn_home/gn-pi-zero-1/bme280: time=2021-05-03T14:31:06,temp_c=21.2,humidity=44.7,pressure=1008.1
-    #{"time": "2024-08-20T17:55:31", "temp_c": "23.6", "temp_f": "74.4", "humidity": "56.5", "pressure": "1010.3", "topic": "gn_home/gn-pi-zero-2/bme280/J"}
-    #{"time": "2024-08-20T17:55:31", "pm10": 2, "pm25": 2, "pm100": 2, "topic": "gn_home/gn-pi-zero-2/pm25/J"}
-
     for line in sens_lines:
         l = line.split(':',maxsplit=1)
         if sys_name and l[0].find(sys_name) == -1:
@@ -466,14 +437,35 @@ def get_home_sensors(fname, sys_name='gn-pi-zero-1'):
     logger.debug('get_home_sensors: {}'.format(str(val_dict)))
     return val_dict
 
+def get_latest_sensors(sensors):
+    '''
+    Collect most recent values of all sensors.
+    :param sensors: dict of SensorVals, e.g., BME280, PM25
+    :return: dict with sensor as key and current value
+    '''
+    sens_vals = {}   # key is sensor name
+    for s in sensors:
+        for dev in sensors[s].vals:
+            logger.debug('get_latest_sensors: {}, {}'.format(s, dev))
+            sens_vals[dev+'_sens'] = sensors[s].vals[dev][-1]
+    logger.debug('latest sensors: {}'.format(str(sens_vals)))
+    return sens_vals
+
 def make_wx_current(the_vals, heading='Current Obs', tzoff=-8, lon_lat=None, home_name='', radar_type=''):
     '''
     Generate web page with jinja2.
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
     :return:
     '''
-    loader = FileSystemLoader('./templates')
-    env = Environment(loader=loader)
+    if False:
+        env = Environment(
+            loader=PackageLoader("app"),
+            autoescape=select_autoescape()
+        )
+    else:
+        path = os.path.join(os.path.dirname(__file__), 'templates')
+        loader = FileSystemLoader(searchpath=path)
+        env = Environment(loader=loader)
     templ = env.get_template('wx_now.html')
     templ_keys = ['temp', 'humidity', 'feels_like', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'sunrise', 'sunset', 'uv_index', 'feels_like']
     templ_args = {}
@@ -491,7 +483,10 @@ def make_wx_current(the_vals, heading='Current Obs', tzoff=-8, lon_lat=None, hom
     if home_name:
         templ_args['home_name'] = home_name
     # Get home sensors
-    sensors = get_home_sensors('../sensors/mqtt_rcv.log', sys_name='gn-pi-zero-2')
+    read_log('../sensors/mqtt_rcv.log')
+    logger.debug('Finished read_log')
+    #sensors = get_home_sensors('../sensors/mqtt_rcv.log')
+    sensors = get_latest_sensors(sensor_devs)
     # TODO: should modify the template to take a dict of sensors, but for now ...
     for s in sensors:
         templ_args[s] = sensors[s]
@@ -499,8 +494,8 @@ def make_wx_current(the_vals, heading='Current Obs', tzoff=-8, lon_lat=None, hom
     buttons = make_buttons(exclude=['hourly', 'now'], lon_lat=lon_lat, home_name=home_name, tzoff=tzoff, radar_type=radar_type)  # returns list of HTML string
     buttons = ''.join(buttons)
     logger.debug('call stream_plot')
-    time_plot = timeplot.stream_plot()
-    return templ.render(templ_args, node_port=node_port, img_base64=time_plot, buttons=buttons)
+    time_plot = timeplot.stream_plot(sensor_devs)
+    return templ.render(templ_args, img_base64=time_plot, buttons=buttons)
 
 def make_hourly_fcst_page(data_all, heading='Today', hours=[1,2,3,6,9]):
     '''
@@ -508,7 +503,8 @@ def make_hourly_fcst_page(data_all, heading='Today', hours=[1,2,3,6,9]):
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
     :return:
     '''
-    loader = FileSystemLoader('./templates')
+    path = os.path.join(os.path.dirname(__file__), 'templates')
+    loader = FileSystemLoader(searchpath=path)
     env = Environment(loader=loader)
     templ_all = env.get_template('wx_hourly_many.html')        # complate page with multiple hours
     all_divs = make_hourly_divs(data_all, hours=hours)
@@ -522,7 +518,8 @@ def make_hourly_divs(the_vals, heading='Today', hours=[1,2,3,4], tzoff=-8):
     :param hours: list of forecast hours from present time
     :return: HTML DIV list
     '''
-    loader = FileSystemLoader('./templates')
+    path = os.path.join(os.path.dirname(__file__), 'templates')
+    loader = FileSystemLoader(searchpath=path)
     env = Environment(loader=loader)
     templ = env.get_template('fcst_hourly_div.html')     # construct a DIV for each hour
     templ_keys = ['temp', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'pop']
@@ -556,7 +553,8 @@ def make_wx_hourly(the_vals, heading='Hourly Forecast'):
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
     :return:
     '''
-    loader = FileSystemLoader('./templates')
+    path = os.path.join(os.path.dirname(__file__), 'templates')
+    loader = FileSystemLoader(searchpath=path)
     env = Environment(loader=loader)
     templ = env.get_template('wx_hourly.html')
     templ_keys = ['temp', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon']
@@ -584,9 +582,10 @@ def make_daily_fcst_page(data_all, tzoff=-8, lon_lat=None, home_name='', radar_t
     if tzStr in myTZ:
         tz_local = myTZ[tzStr].utcoffset()
     '''
-    loader = FileSystemLoader('./templates')
+    path = os.path.join(os.path.dirname(__file__), 'templates')
+    loader = FileSystemLoader(searchpath=path)
     env = Environment(loader=loader)
-    templ_all = env.get_template('wx_daily_many.html')        # complate page with multiple days
+    templ_all = env.get_template('wx_daily_many.html')  # complete page with multiple days
     templ = env.get_template('fcst_daily_div.html')     # construct a DIV for each day
     templ_keys = ['sunrise', 'sunset', 'temp_max', 'temp_min', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon', 'pop']
     divs = []
@@ -612,12 +611,13 @@ def make_daily_fcst_page(data_all, tzoff=-8, lon_lat=None, home_name='', radar_t
         # day-of-week name
         day_name = dt_obs.date().strftime('%A')
         templ_args['day_name'] = day_name[:3]
-        divs.append(templ.render(templ_args))
+        divs.append(templ.render(templ_args, url_for=url_for))
     host,node_port = get_node_addr()
     buttons = make_buttons(exclude=['hourly', 'daily'], lon_lat=lon_lat, home_name=home_name, tzoff=tzoff, radar_type=radar_type)  # returns list of HTML string
     buttons = ''.join(buttons)
     #logger.debug('make_buttons: {}'.format(buttons))
-    return templ_all.render(divs=divs, node_port=node_port, buttons=buttons, home=home_name)
+    #return templ_all.render(divs=divs, node_port=node_port, buttons=buttons, home=home_name)
+    return templ_all.render(url_for=url_for, divs=divs, buttons=buttons, home=home_name)
 
 def make_wx_daily(the_vals, heading='Daily'):
     '''
@@ -625,7 +625,8 @@ def make_wx_daily(the_vals, heading='Daily'):
     :param obs: object of CurrentObs, FcstDailyData, or FcstHourlyData
     :return:
     '''
-    loader = FileSystemLoader('./templates')
+    path = os.path.join(os.path.dirname(__file__), 'templates')
+    loader = FileSystemLoader(searchpath=path)
     env = Environment(loader=loader)
     templ = env.get_template('wx_daily_one.html')
     templ_keys = ['temp_max', 'temp_min', 'humidity', 'wind_speed', 'wind_deg', 'weather_description', 'weather_icon']
