@@ -60,4 +60,3 @@ def get_node_addr():
     else:
         node_port = '80'
     return host,node_port
-

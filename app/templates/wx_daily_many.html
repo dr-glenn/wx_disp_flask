@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Wx Fcst</title>
+    <style>
+    img { border: 2px solid; }
+    </style>
+    <link rel="stylesheet" type="text/css" href="static/style.css"/>
+</head>
+<body>
+<div style="position:relative;width:778px;height:460px; border-width: 2px; border-style: solid;">
+    <span class='biggest-bold' style="background-color: deepskyblue; color: white;">{{ home }}</span>
+    <section class="grid-1">
+    {% for div in divs %}
+        <div class="box-ivory">
+        {{ div|safe }}
+        </div>
+    {% endfor %}
+    </section>
+    <div id="page_links" style="position:absolute; bottom:5px; right:10px;">
+        {{ buttons|safe }}
+    </div>
+</div>
+</body>
+</html>

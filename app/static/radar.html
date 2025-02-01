@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Radar WMS</title>
+
+  <style>.grid-container {
+		display: grid;
+		grid-template:
+			/* 3 rows with specified height. 2 columns, the sidebar is fixed width */
+			"h s" 50px
+			"m s" 310px
+			"f s" 80px
+			/ 1fr 210px;
+		grid-gap: 2px;
+	  }
+	  .header { grid-area: h; }
+	  .map-area { grid-area: m; }
+	  .footer { grid-area: f; }
+	  .sidebar { grid-area: s; }
+	  .with-border { border-width: 1px; border-style: solid; border-color: blue; }
+	  
+	.btn-clicked { background-color: #406040; }
+	.btn-default { background-color: #4CAF50;}
+	.btn-group button {
+		/*background-color: #4CAF50;*/
+		border: 2px solid green; 
+		color: white;
+		padding: 5px 5px;
+		cursor: pointer;
+		width: 90px;
+		text-align: center;
+		display: block;	/* buttons appear below each other */
+	}
+	/* prevent double borders */
+	.btn-group button:not(:last-child) {
+		border-bottom: none;
+	}
+	
+	/* Change background color on hover */
+	.btn-group button:hover  { background-color: #3e8e41; }
+	/* active and focus prevent the button from showing a different outline when clicked */
+	.btn-group button:active,button:focus { outline:0; outline-style:none; outline-width:0; }</style>
+  
+  <link rel="stylesheet" href="/static/radar_conus.css"></head><body>
+  <form id="params" style="display:none;" method="get" action="/daily">
+	<input type="text" id="lon_lat" name="lon_lat">
+	<input type="text" id="tz_off" name="tz" value="-8">
+	<input type="text" id="radar_type" name="radar_type" value="bref_qcd">
+	<input type="text" id="radar_sta" name="radar_sta" value="kmux">
+	<input type="text" id="home_name" name="home_name" value="Dover">
+  </form>
+  <div class="grid-container" style="width:792px;">
+	<div class="header with-border">
+		<span style="font-size:24px; font-weight:bold;">NWS Weather Radar</span>
+		<span style="float:right; font-size:24px; margin-right:8px;"><span>Last Update: </span><span id="img_timer"></span></span>
+	</div>
+    <div id="map" class="map-area with-border"></div>
+	<div class="footer with-border">
+		<div role="group">
+		  <button id="play" type="button">Play</button>
+		  <button id="pause" type="button">Pause</button>
+		  <button id="latest" type="button">Stop</button>
+		  <span id="time_info"></span>
+		</div>
+		<img id="legend" alt="legend goes here" width="500" height="40">
+	</div>
+	<div id="side_panel" class="sidebar with-border" style="display:flex; flex-direction:column; justify-content:stretch;">
+		<div id="ctrl_buttons">
+			<div id="rad_buttons" class="btn-group">
+				<span style="font-style: italic; font-size: 22px;">Radar</span>
+				<button name="radar_product" value="bref_raw">BREF_RAW</button>
+				<button name="radar_product" value="bref_qcd">BREF_QCD</button>
+				<button name="radar_product" value="cref_raw">CREF_RAW</button>
+				<button name="radar_product" value="cref_qcd">CREF_QCD</button>
+			</div>
+			<div id="loc_buttons" style="margin-top: 10px;" class="btn-group">
+				<span style="font-style: italic; font-size: 22px;">Locations</span>
+				<!-- location buttons are added here by JS code -->
+			</div>
+		</div>
+		<div id="hourly_fcsts">
+		</div>
+		<!-- force this button to bottom of parent DIV using flex-end -->
+		<div style="margin-top:auto; width:100%; align-self:flex-end;">
+			<button id="next_panel" type="button">Today</button>
+			<button id="daily_fcst" type="button">Daily Fcsts</button>
+			<button id="current_wx" type="button">Now</button>
+		</div>
+	</div>
+
+  </div>
+	  <script src="/static/radar_conus.js"></script>
+  </body>
+</html>
